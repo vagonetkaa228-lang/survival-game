@@ -1,0 +1,1 @@
+{"player": {"x": 500, "y": 693, "health": 100, "hunger": 99.71999999999866, "thirst": 99.4400000000013, "energy": 100, "inventory": {"wood": {"item_id": "wood", "count": 1, "durability": null}, "stone": {"item_id": "stone", "count": 1, "durability": null}}, "hotbar": [null, null, null, null, null], "active_item_id": null}}

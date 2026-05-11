@@ -3,4 +3,4 @@ __pycache__/
 .idea/ 
 venv/ 
 .venv/ 
-save.json 
+save.json    # если не хочешь сохранять сохранения
