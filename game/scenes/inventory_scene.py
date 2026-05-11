@@ -66,7 +66,7 @@ class InventoryScene:
 
     def draw(self, screen):
 
-            # Фон в стиле Rust – тёмно-коричневый
+            # Фон
             screen.fill((30, 25, 20))
 
             # Рамка вокруг всего интерфейса

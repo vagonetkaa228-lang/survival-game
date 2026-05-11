@@ -112,41 +112,6 @@ class GameScene:
                 continue
             self.loots.append(Loot(x, y, "pistol"))
 
-        # for _ in range(10):
-        #     self.enemies.append(Wolf(random.randint(0, WORLD_WIDTH-random.randint(500,1000)), random.randint(0, WORLD_HEIGHT-random.randint(500,1000))))
-        # for _ in range(10):
-        #     self.enemies.append(Bear(random.randint(0, WORLD_WIDTH-random.randint(100,1000)), random.randint(0, WORLD_HEIGHT - random.randint(100,1000))))
-        #
-        # for _ in range(10):
-        #     self.enemies.append(Deer(random.randint(0, WORLD_WIDTH-random.randint(100,1000)), random.randint(0, WORLD_HEIGHT - random.randint(100,1000))))
-        # for _ in range(10):
-        #     self.enemies.append(Rabbit(random.randint(0, WORLD_WIDTH-random.randint(100,1000)), random.randint(0, WORLD_HEIGHT - random.randint(100,1000))))
-        # for _ in range(10):
-        #     self.enemies.append(Fox(random.randint(0, WORLD_WIDTH -random.randint(100,1000)), random.randint(0, WORLD_HEIGHT - random.randint(100,1000))))
-        #
-        # self.loots = []
-        # for _ in range(10):  # меньше предметов
-        #     for attempt in range(10):  # больше 10 попыток не делаем
-        #         x = random.randint(0, WORLD_WIDTH)
-        #         y = random.randint(0, WORLD_HEIGHT)
-        #         if self.environment.is_land(x, y):
-        #             break
-        #     else:
-        #         continue  # пропускаем предмет, если не нашли сушу
-        #     item_id = random.choice(["berry", "clean_water", "wood", "stone"])
-        #     self.loots.append(Loot(x, y, item_id))
-        # self.survivors = [Survivor(random.randint(0, WORLD_WIDTH), random.randint(0, WORLD_HEIGHT)) for _ in range(5)]
-        #
-        # for _ in range(5):  # несколько штук
-        #     for _ in range(30):  # до 30 попыток
-        #         x = random.randint(0, WORLD_WIDTH)
-        #         y = random.randint(0, WORLD_HEIGHT)
-        #         if self.environment.is_land_fast(x, y):
-        #             break
-        #     else:
-        #         continue  # не нашли место — пропускаем этот пистолет
-        #     self.loots.append(Loot(x, y, "pistol"))
-
     def handle_event(self, event):
         if event.type == pygame.KEYDOWN:
             if event.key == K_ESCAPE:
@@ -274,17 +239,7 @@ class GameScene:
                                 if tool_used:
                                     self.player.consume_tool_durability(tool_id)  # <-- трата прочности
 
-                                # if dist <= 150:
-                            #     tool_type = "axe" if s.type == "tree" else "pickaxe"
-                            #     tool_id = self.player.active_item_id
-                            #     tool_item = ITEMS.get(tool_id) if tool_id else None
-                            #     if tool_item and hasattr(tool_item, 'tool_type') and tool_item.tool_type == tool_type:
-                            #         damage = 2  # бонус, если в руке подходящий инструмент
-                            #     else:
-                            #         damage = 1
-                            #     damage = 2 if tool_id else 1
-                            #     s.health -= damage
-                            #     s.hit_timer = 5  # подсветка
+
                                 if s.health <= 0:
                                     if s.type == "tree":
                                         for _ in range(random.randint(2, 3)):

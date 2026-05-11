@@ -2,7 +2,7 @@ import pygame
 from game.scenes.menu import MenuScene
 
 pygame.init()
-screen = pygame.display.set_mode((800, 600))
+screen = pygame.display.set_mode((1200, 800))
 pygame.display.set_caption("Survival Game")
 clock = pygame.time.Clock()
 
