@@ -83,7 +83,7 @@ class WorldEnvironment:
         Возвращает список структур."""
         structures = []
         # Деревья: размещаем на траве с вероятностью, избегая краёв
-        step = 200  # расстояние между возможными позициями
+        step = 50  # расстояние между возможными позициями
         for x in range(self.center_x - int(self.island_radius_x), self.center_x + int(self.island_radius_x), step):
             for y in range(self.center_y - int(self.island_radius_y), self.center_y + int(self.island_radius_y), step):
                 # Добавим небольшой случайный сдвиг
@@ -132,3 +132,66 @@ class WorldEnvironment:
         dy = world_y - self.center_y
         ellipse_dist = (dx ** 2) / (self.island_radius_x ** 2) + (dy ** 2) / (self.island_radius_y ** 2)
         return ellipse_dist <= 1.0  # внутри эллипса – суша (трава), иначе вода
+
+    def find_land_near(self, base_x, base_y, prefer=('sand', 'grass'), search_radius=None):
+        """Ищет сушу рядом с точкой. Возвращает (world_x, world_y)."""
+        if search_radius is None:
+            search_radius = int(min(self.island_radius_x, self.island_radius_y) * 0.35)
+        if self.get_tile(base_x, base_y) in prefer:
+            return base_x, base_y
+        step = 20
+        for radius in range(step, search_radius + step, step):
+            for dy in range(-radius, radius + 1, step):
+                for dx in range(-radius, radius + 1, step):
+                    if abs(dx) != radius and abs(dy) != radius:
+                        continue
+                    wx, wy = base_x + dx, base_y + dy
+                    if self.get_tile(wx, wy) in prefer:
+                        return wx, wy
+        return base_x, base_y
+
+    def get_crash_site_world_pos(self):
+        """Место крушения на левом берегу острова (мировые координаты)."""
+        base_x = self.center_x - int(self.island_radius_x * 0.75)
+        base_y = self.center_y + int(self.island_radius_y * 0.35)
+        return self.find_land_near(base_x, base_y, prefer=('sand', 'grass'))
+
+    def get_game_spawn_after_prologue(self):
+        """Стартовая позиция после пролога: левее и выше центра острова."""
+        rx, ry = int(self.island_radius_x), int(self.island_radius_y)
+        cx, cy = self.center_x, self.center_y
+        for y in range(cy - int(ry * 0.35), cy + ry // 10, 25):
+            for x in range(cx - int(rx * 0.65), cx - rx // 5, 25):
+                if self.get_tile(x, y) == 'grass':
+                    return x, y
+        return self.find_land_near(cx - rx // 2, cy - ry // 8, prefer=('grass', 'sand'))
+
+    def generate_beach_wreckage(self, count_range=(8, 12)):
+        """Статичные обломки только на левом берегу острова."""
+        from game.story.helicopter import StaticWreckage
+        crash_x, crash_y = self.get_crash_site_world_pos()
+        wreckages = []
+        target = random.randint(*count_range)
+        attempts = 0
+        while len(wreckages) < target and attempts < target * 40:
+            attempts += 1
+            wx = crash_x + random.randint(-60, 100)
+            wy = crash_y + random.randint(-90, 90)
+            if wx >= self.center_x - self.island_radius_x * 0.15:
+                continue
+            tile = self.get_tile(wx, wy)
+            if tile not in ('sand', 'grass'):
+                continue
+            new_rect = pygame.Rect(wx, wy, 30, 22)
+            overlap = False
+            for w in wreckages:
+                if w.rect.colliderect(new_rect):
+                    overlap = True
+                    break
+            if not overlap:
+                wreckages.append(StaticWreckage(wx, wy))
+        return wreckages
+
+    def is_near_crash_site(self, world_x, world_y, radius=110):
+        cx, cy = self.get_crash_site_world_pos()
+        return math.hypot(world_x - cx, world_y - cy) <= radius

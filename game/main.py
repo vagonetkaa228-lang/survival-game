@@ -1,8 +1,9 @@
 import pygame
+from game.settings import WIDTH, HEIGHT
 from game.scenes.menu import MenuScene
 
 pygame.init()
-screen = pygame.display.set_mode((800, 600))
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Survival Game")
 clock = pygame.time.Clock()
 

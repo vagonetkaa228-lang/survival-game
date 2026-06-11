@@ -2,8 +2,9 @@ import pygame
 import random
 import math
 from pygame import K_ESCAPE
+from game.story.prologue import PrologueScene
 from game.items.registry import ITEMS
-from game.settings import WIDTH, HEIGHT, WORLD_WIDTH, WORLD_HEIGHT
+from game.settings import WIDTH, HEIGHT, WORLD_WIDTH, WORLD_HEIGHT, CRASH_SITE_RADIUS
 from game.entities.player import Player
 from game.entities.loot import Loot
 from game.entities.survivor import Survivor
@@ -18,17 +19,34 @@ from game.systems.combat import perform_attack
 class GameScene:
     def __init__(self, data=None):
         self.player = Player()
+        self.tutorial_completed = False
+        self.prologue_completed = False
         if data:
-            if data:
+            if "player" in data:
                 self.player.__dict__.update(data["player"])
-
+            self.tutorial_completed = data.get("tutorial_completed", False)
+            self.prologue_completed = data.get("prologue_completed", False)
+            self._prologue_spawn = (
+                data.get("spawn_x"),
+                data.get("spawn_y"),
+            )
+        else:
+            self._prologue_spawn = (None, None)
 
         self.camera = Camera(WIDTH, HEIGHT, WORLD_WIDTH, WORLD_HEIGHT)
         self.day_night = DayNightCycle()
         self.environment = WorldEnvironment(WORLD_WIDTH, WORLD_HEIGHT)
 
+        if self.prologue_completed:
+            sx, sy = self._prologue_spawn
+            if sx is not None and sy is not None:
+                self.player.x, self.player.y = sx, sy
+            else:
+                self.player.x, self.player.y = self.environment.get_game_spawn_after_prologue()
+
 
         self.structures = self.environment.generate_structures()
+        self.beach_wreckages = self.environment.generate_beach_wreckage()
 
         self.hud = HUD()
         self.renderer = WorldRenderer(self.environment, self.hud)
@@ -52,25 +70,25 @@ class GameScene:
 
             # ---------- ВОЛКИ (10 штук) ----------
 
-        for _ in range(1):
+        for _ in range(10):
             pos = find_grass_pos()
             if pos:
                 self.enemies.append(Wolf(*pos))
 
             # ---------- МЕДВЕДИ (15 штук) ----------
-        for _ in range(1):
+        for _ in range(8):
             pos = find_grass_pos()
             if pos:
                 self.enemies.append(Bear(*pos))
 
             # ---------- ОЛЕНИ (20 штук) ----------
-        for _ in range(2):
+        for _ in range(12):
             pos = find_grass_pos()
             if pos:
                 self.enemies.append(Deer(*pos))
 
             # ---------- КРОЛИКИ (100 штук) ----------
-        for _ in range(1):
+        for _ in range(25):
             pos = find_grass_pos()
             if pos:
                 self.enemies.append(Rabbit(*pos))
@@ -83,7 +101,7 @@ class GameScene:
 
             # ---------- ЛУТ (ягоды, вода, дерево, камень) ----------
         self.loots = []
-        for _ in range(100):
+        for _ in range(10):
             for _ in range(30):  # попытки найти сушу (траву или песок)
                 x = random.randint(0, WORLD_WIDTH)
                 y = random.randint(0, WORLD_HEIGHT)
@@ -112,41 +130,6 @@ class GameScene:
                 continue
             self.loots.append(Loot(x, y, "pistol"))
 
-        # for _ in range(10):
-        #     self.enemies.append(Wolf(random.randint(0, WORLD_WIDTH-random.randint(500,1000)), random.randint(0, WORLD_HEIGHT-random.randint(500,1000))))
-        # for _ in range(10):
-        #     self.enemies.append(Bear(random.randint(0, WORLD_WIDTH-random.randint(100,1000)), random.randint(0, WORLD_HEIGHT - random.randint(100,1000))))
-        #
-        # for _ in range(10):
-        #     self.enemies.append(Deer(random.randint(0, WORLD_WIDTH-random.randint(100,1000)), random.randint(0, WORLD_HEIGHT - random.randint(100,1000))))
-        # for _ in range(10):
-        #     self.enemies.append(Rabbit(random.randint(0, WORLD_WIDTH-random.randint(100,1000)), random.randint(0, WORLD_HEIGHT - random.randint(100,1000))))
-        # for _ in range(10):
-        #     self.enemies.append(Fox(random.randint(0, WORLD_WIDTH -random.randint(100,1000)), random.randint(0, WORLD_HEIGHT - random.randint(100,1000))))
-        #
-        # self.loots = []
-        # for _ in range(10):  # меньше предметов
-        #     for attempt in range(10):  # больше 10 попыток не делаем
-        #         x = random.randint(0, WORLD_WIDTH)
-        #         y = random.randint(0, WORLD_HEIGHT)
-        #         if self.environment.is_land(x, y):
-        #             break
-        #     else:
-        #         continue  # пропускаем предмет, если не нашли сушу
-        #     item_id = random.choice(["berry", "clean_water", "wood", "stone"])
-        #     self.loots.append(Loot(x, y, item_id))
-        # self.survivors = [Survivor(random.randint(0, WORLD_WIDTH), random.randint(0, WORLD_HEIGHT)) for _ in range(5)]
-        #
-        # for _ in range(5):  # несколько штук
-        #     for _ in range(30):  # до 30 попыток
-        #         x = random.randint(0, WORLD_WIDTH)
-        #         y = random.randint(0, WORLD_HEIGHT)
-        #         if self.environment.is_land_fast(x, y):
-        #             break
-        #     else:
-        #         continue  # не нашли место — пропускаем этот пистолет
-        #     self.loots.append(Loot(x, y, "pistol"))
-
     def handle_event(self, event):
         if event.type == pygame.KEYDOWN:
             if event.key == K_ESCAPE:
@@ -161,7 +144,7 @@ class GameScene:
                 self.player.interact(self.structures)
             if event.key == pygame.K_b:
                 # Циклическое переключение строительных наборов
-                available = [item for item in self.build_options if self.player.inventory.get(item, 0) > 0]
+                available = [item for item in self.build_options if self.player.count_item(item) > 0]
                 if not available:
                     self.build_mode = False
                     self.build_item = None
@@ -231,8 +214,8 @@ class GameScene:
                     elif self.build_item == "wood_door_kit":
                         self.structures.append(Structure(grid_x, grid_y, "door", solid=True))
                     # Если предметы кончились, переключить
-                    if self.player.inventory.get(self.build_item, 0) == 0:
-                        available = [item for item in self.build_options if self.player.inventory.get(item, 0) > 0]
+                    if self.player.count_item(self.build_item) == 0:
+                        available = [item for item in self.build_options if self.player.count_item(item) > 0]
                         if available:
                             self.build_item = available[0]
                         else:
@@ -274,17 +257,7 @@ class GameScene:
                                 if tool_used:
                                     self.player.consume_tool_durability(tool_id)  # <-- трата прочности
 
-                                # if dist <= 150:
-                            #     tool_type = "axe" if s.type == "tree" else "pickaxe"
-                            #     tool_id = self.player.active_item_id
-                            #     tool_item = ITEMS.get(tool_id) if tool_id else None
-                            #     if tool_item and hasattr(tool_item, 'tool_type') and tool_item.tool_type == tool_type:
-                            #         damage = 2  # бонус, если в руке подходящий инструмент
-                            #     else:
-                            #         damage = 1
-                            #     damage = 2 if tool_id else 1
-                            #     s.health -= damage
-                            #     s.hit_timer = 5  # подсветка
+
                                 if s.health <= 0:
                                     if s.type == "tree":
                                         for _ in range(random.randint(2, 3)):
@@ -309,8 +282,13 @@ class GameScene:
             return GameOverScene()
 
         keys = pygame.key.get_pressed()
-        self.player.move(keys, self.structures)
+        self.player.move(keys, self.structures + self.beach_wreckages)
         self.player.update()
+
+        px = self.player.x + self.player.size // 2
+        py = self.player.y + self.player.size // 2
+        if self.environment.is_near_crash_site(px, py, CRASH_SITE_RADIUS):
+            return PrologueScene(revisit=True, player=self.player, game_scene=self)
 
         self.day_night.update()
         self.camera.update(self.player.x, self.player.y)
@@ -371,7 +349,7 @@ class GameScene:
                     self.player.health = min(100, self.player.health + 0.05)
         # обновление снарядов
         for proj in self.projectiles[:]:
-            proj.update(self.enemies, self.structures)
+            proj.update(self.enemies, self.structures + self.beach_wreckages)
             if not proj.active:
                 self.projectiles.remove(proj)
         self.hud.update(self.player.health)
@@ -385,6 +363,9 @@ class GameScene:
 
         )
         self.hud.draw(screen, self.player)
+
+        for wreck in self.beach_wreckages:
+            wreck.draw(screen, self.camera.x, self.camera.y)
 
         for proj in self.projectiles:
             proj.draw(screen, self.camera.x, self.camera.y)
