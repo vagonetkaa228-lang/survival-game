@@ -2,6 +2,7 @@ import pygame
 import random
 import math
 from pygame import K_ESCAPE
+from game.story.prologue import PrologueScene
 from game.items.registry import ITEMS
 from game.settings import WIDTH, HEIGHT, WORLD_WIDTH, WORLD_HEIGHT
 from game.entities.player import Player
@@ -52,25 +53,25 @@ class GameScene:
 
             # ---------- ВОЛКИ (10 штук) ----------
 
-        for _ in range(1):
+        for _ in range(10):
             pos = find_grass_pos()
             if pos:
                 self.enemies.append(Wolf(*pos))
 
             # ---------- МЕДВЕДИ (15 штук) ----------
-        for _ in range(1):
+        for _ in range(8):
             pos = find_grass_pos()
             if pos:
                 self.enemies.append(Bear(*pos))
 
             # ---------- ОЛЕНИ (20 штук) ----------
-        for _ in range(2):
+        for _ in range(12):
             pos = find_grass_pos()
             if pos:
                 self.enemies.append(Deer(*pos))
 
             # ---------- КРОЛИКИ (100 штук) ----------
-        for _ in range(1):
+        for _ in range(25):
             pos = find_grass_pos()
             if pos:
                 self.enemies.append(Rabbit(*pos))
@@ -83,7 +84,7 @@ class GameScene:
 
             # ---------- ЛУТ (ягоды, вода, дерево, камень) ----------
         self.loots = []
-        for _ in range(100):
+        for _ in range(10):
             for _ in range(30):  # попытки найти сушу (траву или песок)
                 x = random.randint(0, WORLD_WIDTH)
                 y = random.randint(0, WORLD_HEIGHT)
@@ -126,7 +127,7 @@ class GameScene:
                 self.player.interact(self.structures)
             if event.key == pygame.K_b:
                 # Циклическое переключение строительных наборов
-                available = [item for item in self.build_options if self.player.inventory.get(item, 0) > 0]
+                available = [item for item in self.build_options if self.player.count_item(item) > 0]
                 if not available:
                     self.build_mode = False
                     self.build_item = None
@@ -196,8 +197,8 @@ class GameScene:
                     elif self.build_item == "wood_door_kit":
                         self.structures.append(Structure(grid_x, grid_y, "door", solid=True))
                     # Если предметы кончились, переключить
-                    if self.player.inventory.get(self.build_item, 0) == 0:
-                        available = [item for item in self.build_options if self.player.inventory.get(item, 0) > 0]
+                    if self.player.count_item(self.build_item) == 0:
+                        available = [item for item in self.build_options if self.player.count_item(item) > 0]
                         if available:
                             self.build_item = available[0]
                         else:

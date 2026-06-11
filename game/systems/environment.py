@@ -83,7 +83,7 @@ class WorldEnvironment:
         Возвращает список структур."""
         structures = []
         # Деревья: размещаем на траве с вероятностью, избегая краёв
-        step = 200  # расстояние между возможными позициями
+        step = 50  # расстояние между возможными позициями
         for x in range(self.center_x - int(self.island_radius_x), self.center_x + int(self.island_radius_x), step):
             for y in range(self.center_y - int(self.island_radius_y), self.center_y + int(self.island_radius_y), step):
                 # Добавим небольшой случайный сдвиг
