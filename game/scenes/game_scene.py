@@ -4,7 +4,7 @@ import math
 from pygame import K_ESCAPE
 from game.story.prologue import PrologueScene
 from game.items.registry import ITEMS
-from game.settings import WIDTH, HEIGHT, WORLD_WIDTH, WORLD_HEIGHT
+from game.settings import WIDTH, HEIGHT, WORLD_WIDTH, WORLD_HEIGHT, CRASH_SITE_RADIUS
 from game.entities.player import Player
 from game.entities.loot import Loot
 from game.entities.survivor import Survivor
@@ -19,17 +19,34 @@ from game.systems.combat import perform_attack
 class GameScene:
     def __init__(self, data=None):
         self.player = Player()
+        self.tutorial_completed = False
+        self.prologue_completed = False
         if data:
-            if data:
+            if "player" in data:
                 self.player.__dict__.update(data["player"])
-
+            self.tutorial_completed = data.get("tutorial_completed", False)
+            self.prologue_completed = data.get("prologue_completed", False)
+            self._prologue_spawn = (
+                data.get("spawn_x"),
+                data.get("spawn_y"),
+            )
+        else:
+            self._prologue_spawn = (None, None)
 
         self.camera = Camera(WIDTH, HEIGHT, WORLD_WIDTH, WORLD_HEIGHT)
         self.day_night = DayNightCycle()
         self.environment = WorldEnvironment(WORLD_WIDTH, WORLD_HEIGHT)
 
+        if self.prologue_completed:
+            sx, sy = self._prologue_spawn
+            if sx is not None and sy is not None:
+                self.player.x, self.player.y = sx, sy
+            else:
+                self.player.x, self.player.y = self.environment.get_game_spawn_after_prologue()
+
 
         self.structures = self.environment.generate_structures()
+        self.beach_wreckages = self.environment.generate_beach_wreckage()
 
         self.hud = HUD()
         self.renderer = WorldRenderer(self.environment, self.hud)
@@ -265,8 +282,13 @@ class GameScene:
             return GameOverScene()
 
         keys = pygame.key.get_pressed()
-        self.player.move(keys, self.structures)
+        self.player.move(keys, self.structures + self.beach_wreckages)
         self.player.update()
+
+        px = self.player.x + self.player.size // 2
+        py = self.player.y + self.player.size // 2
+        if self.environment.is_near_crash_site(px, py, CRASH_SITE_RADIUS):
+            return PrologueScene(revisit=True, player=self.player, game_scene=self)
 
         self.day_night.update()
         self.camera.update(self.player.x, self.player.y)
@@ -327,7 +349,7 @@ class GameScene:
                     self.player.health = min(100, self.player.health + 0.05)
         # обновление снарядов
         for proj in self.projectiles[:]:
-            proj.update(self.enemies, self.structures)
+            proj.update(self.enemies, self.structures + self.beach_wreckages)
             if not proj.active:
                 self.projectiles.remove(proj)
         self.hud.update(self.player.health)
@@ -341,6 +363,9 @@ class GameScene:
 
         )
         self.hud.draw(screen, self.player)
+
+        for wreck in self.beach_wreckages:
+            wreck.draw(screen, self.camera.x, self.camera.y)
 
         for proj in self.projectiles:
             proj.draw(screen, self.camera.x, self.camera.y)

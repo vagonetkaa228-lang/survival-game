@@ -12,5 +12,8 @@ FPS = 60
 
 SOUND_VOLUME= 0.5
 
-WORLD_WIDTH = 1000
-WORLD_HEIGHT = 1000
+WORLD_WIDTH = 4000
+WORLD_HEIGHT = 4000
+
+# Радиус зоны крушения: при входе в неё из GameScene открывается сцена обломков
+CRASH_SITE_RADIUS = 110

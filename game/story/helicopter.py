@@ -96,3 +96,26 @@ class HelicopterWreckage:
 
     def get_rect(self):
         return self.rect
+
+
+class StaticWreckage:
+    """Обломки без огня — для левого берега в основном мире."""
+    def __init__(self, x, y, width=None, height=None):
+        self.x = x
+        self.y = y
+        self.width = width or random.randint(20, 42)
+        self.height = height or random.randint(12, 26)
+        self.rect = pygame.Rect(x, y, self.width, self.height)
+        self.solid = True
+
+    def update(self):
+        pass
+
+    def draw(self, surface, camera_x, camera_y):
+        screen_x = self.x - camera_x
+        screen_y = self.y - camera_y
+        pygame.draw.rect(surface, (30, 80, 30), (screen_x, screen_y, self.width, self.height))
+        pygame.draw.rect(surface, (45, 95, 45), (screen_x, screen_y, self.width, self.height), 1)
+
+    def get_rect(self):
+        return self.rect

@@ -2,8 +2,6 @@ import math
 import pygame
 import random
 from game.entities.enemy_base import Enemy
-# from game.entities.deer import Deer
-# from game.entities.rabbit import Rabbit
 
 
 class Wolf(Enemy):
@@ -17,15 +15,12 @@ class Wolf(Enemy):
         self.flee_health_threshold = 25
         self.pack_call_range = 300
         self.target = None
-    # ... (конструктор и параметры без изменений)
 
     def update_state(self, player, all_enemies=None, structures=None):
         if self.aggro_player:
             self.state = "chase"
             self.target = player
             return
-        # Если получил урон, сразу преследовать игрока
-
 
         dist_to_player = math.hypot(player.x - self.x, player.y - self.y)
 
@@ -49,8 +44,6 @@ class Wolf(Enemy):
             self.state = "idle"
             self.target = None
 
-        # Стайное поведение без изменений...
-        # Стайное поведение
         if self.state == "chase" and all_enemies:
             for other in all_enemies:
                 if other is self or not isinstance(other, Wolf):
@@ -60,6 +53,7 @@ class Wolf(Enemy):
                     if d <= self.pack_call_range:
                         other.state = "chase"
                         other.target = self.target
+
     def act(self, player):
         if self.state == "chase" and self.target:
             self.move_towards(self.target.x, self.target.y, self.structures)
@@ -74,6 +68,28 @@ class Wolf(Enemy):
         elif self.hit_timer > 0:
             color = (255, 255, 255)
         else:
-            color = (128, 128, 128)  # серый
+            color = (128, 128, 128)
+        pygame.draw.rect(surface, color,
+                         (self.x - camera_x, self.y - camera_y, self.size, self.size))
+
+
+class WeakWolf(Wolf):
+    """Слабый волк для обучения в прологе."""
+    def __init__(self, x, y):
+        super().__init__(x, y)
+        self.speed = random.uniform(1.5, 2.5)
+        self.damage = 10
+        self.health = 40
+        self.max_health = 40
+        self.sight_range = 200
+        self.pack_call_range = 0
+
+    def draw(self, surface, camera_x, camera_y):
+        if self.dying:
+            color = (100, 50, 50)
+        elif self.hit_timer > 0:
+            color = (255, 255, 255)
+        else:
+            color = (160, 160, 160)
         pygame.draw.rect(surface, color,
                          (self.x - camera_x, self.y - camera_y, self.size, self.size))
