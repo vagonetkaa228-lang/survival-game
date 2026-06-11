@@ -25,7 +25,7 @@
 
 #### 1. Клонирование репозитория
 ```bash
-git clone https://github.com/yourusername/last-breathe.git
+git clone https://github.com/yourusername/survival-game
 cd last-breathe
 ```
 
