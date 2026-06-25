@@ -39,3 +39,11 @@ class Camera:
                 -(scaled.get_height() - self.height) // 2
             )
         )
+
+    def world_to_screen(self, world_x, world_y):
+        """Перевод мировых координат в экранные с учётом зума."""
+        ox = -(int(self.width * self.zoom) - self.width) // 2
+        oy = -(int(self.height * self.zoom) - self.height) // 2
+        sx = int((world_x - self.x) * self.zoom + ox)
+        sy = int((world_y - self.y) * self.zoom + oy)
+        return sx, sy

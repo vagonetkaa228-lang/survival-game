@@ -1,7 +1,7 @@
 import pygame
 from game.ui.button import Button
 from game.items.registry import ITEMS
-from game.crafting.recipes_list import RECIPES
+from game.crafting.recipes_list import get_recipes_for_player
 
 class CraftingPanel:
     def __init__(self, x, y, width=300):
@@ -15,15 +15,19 @@ class CraftingPanel:
         self.font = pygame.font.SysFont(None, 22)
         self.sm_font = pygame.font.SysFont(None, 16)
 
-    def update_recipes(self, player):
+    def update_recipes(self, player, unlocked_story_ids=None):
         self.buttons.clear()
+
         y = 0
-        for recipe in RECIPES:
+        for recipe in get_recipes_for_player(unlocked_story_ids):
             can = recipe.can_craft(player)  # ← передаём игрока
             btn_rect = pygame.Rect(5, y + 5, self.width - 10, 40)
             self.buttons.append({'rect': btn_rect, 'recipe': recipe, 'can': can})
             y += 50
         self.max_scroll = max(0, y - self.height)
+        self.total_height = y  # общая высота всех кнопок
+        self.surface = pygame.Surface((self.width, self.total_height))
+
 
     def handle_event(self, event, player):
         if event.type == pygame.MOUSEWHEEL:
@@ -61,4 +65,5 @@ class CraftingPanel:
         screen.blit(self.surface, (self.x, self.y))
         # заголовок над панелью
         title = self.font.render("КРАФТ", True, (220,180,100))
-        screen.blit(title, (self.x, self.y - 30))
+        view_rect = pygame.Rect(0, self.scroll_y, self.width, self.height)
+        screen.blit(self.surface, (self.x, self.y), area=view_rect)

@@ -6,7 +6,7 @@ from game.entities.animal import Animal
 class Rabbit(Animal):
     def __init__(self, x, y):
         super().__init__(x, y, "rabbit")
-        self.size = 12
+        self.size = 25
         self.speed = random.uniform(4, 5)
         self.health = 20
         self.max_health = 20
@@ -42,13 +42,3 @@ class Rabbit(Animal):
             self.flee_from(self.flee_target.x, self.flee_target.y, self.structures)
         else:
             self.wander(self.structures)
-
-    def draw(self, surface, camera_x, camera_y):
-        if self.dying:
-            color = (128, 0, 0)
-        elif self.hit_timer > 0:
-            color = (255, 200, 200)  # светло-розовый (для контраста)
-        else:
-            color = (255, 255, 255)  # белый
-        pygame.draw.rect(surface, color,
-                         (self.x - camera_x, self.y - camera_y, self.size, self.size))

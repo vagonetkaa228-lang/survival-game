@@ -10,3 +10,16 @@ RECIPES = [
     Recipe("bow", 1, {"wood": 4, "stone": 2}),
     Recipe("arrow", 3, {"wood": 2, "stone": 1}),
 ]
+
+STORY_RECIPES = {
+    "raft": Recipe("raft", 1, {"wood": 15, "stone": 10}),
+}
+
+
+def get_recipes_for_player(unlocked_story_ids=None):
+    recipes = list(RECIPES)
+    if unlocked_story_ids:
+        for recipe_id in unlocked_story_ids:
+            if recipe_id in STORY_RECIPES:
+                recipes.append(STORY_RECIPES[recipe_id])
+    return recipes

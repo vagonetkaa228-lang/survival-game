@@ -6,7 +6,7 @@ from game.entities.animal import Animal
 class Fox(Animal):
     def __init__(self, x, y):
         super().__init__(x, y, "fox")
-        self.size = 18
+        self.size = 35
         self.speed = random.uniform(2, 2.8)
         self.health = 60
         self.max_health = 60
@@ -57,13 +57,3 @@ class Fox(Animal):
 
         if self.attack_cooldown > 0:
             self.attack_cooldown -= 1
-
-    def draw(self, surface, camera_x, camera_y):
-        if self.dying:
-            color = (128, 0, 0)
-        elif self.hit_timer > 0:
-            color = (255, 255, 255)
-        else:
-            color = (255, 140, 0)  # оранжевый
-        pygame.draw.rect(surface, color,
-                         (self.x - camera_x, self.y - camera_y, self.size, self.size))

@@ -4,16 +4,18 @@ from game.items.tool import Tool
 from game.items.item_stack import ItemStack
 import math
 
+INVENTORY_SIZE = 20
+
+
 class Player:
     def __init__(self):
         self.x = WIDTH// 2
         self.y = HEIGHT//2
-        self.speed = 2
-        self.size = 20
+        self.speed = 2  #2
+        self.size = 40
         self.hunger = 100
         self.thirst = 100
         self.health = 100
-        self.inventory = {}
         self.x = WORLD_WIDTH // 2
         self.y = WORLD_HEIGHT // 2
         self.attack_cooldown = 0
@@ -22,29 +24,43 @@ class Player:
         self.attack_timer = 0  # таймер анимации удара (кадры)
         self.attack_angle = 0 # направление удара (можно по мыши)
         self.alive = True
-        self.inventory = {}  # ключ: item_id, значение: количество
-        self.selected_item = None  # текущий выбранный предмет (для быстрого использования)
+        self.inventory_slots = [None] * INVENTORY_SIZE
+        self.selected_item = None
         self.hotbar = [None] * 5
         self.active_item_id = None
         self.energy = 100
         self.max_energy = 100
         self.walk_speed = 2
-        self.run_speed = 5
+        self.run_speed = 4
+
+    def _find_empty_slot(self):
+        for i, slot in enumerate(self.inventory_slots):
+            if slot is None:
+                return i
+        return None
+
+    def _get_stack_in_slot(self, item_id):
+        for stack in self.inventory_slots:
+            if stack and stack.item_id == item_id:
+                return stack
+        return None
+
+    def has_item(self, item_id):
+        return self.count_item(item_id) > 0
 
     def clean_hotbar(self):
-        """Убирает из хотбара предметы, которых нет в инвентаре"""
         for i in range(len(self.hotbar)):
             item_id = self.hotbar[i]
-            if item_id is not None and item_id not in self.inventory:
+            if item_id is not None and not self.has_item(item_id):
                 self.hotbar[i] = None
-        # Сбрасываем активный предмет, если его больше нет
-        if self.active_item_id is not None and self.active_item_id not in self.inventory:
+        if self.active_item_id is not None and not self.has_item(self.active_item_id):
             self.active_item_id = None
 
     def count_item(self, item_id):
-        """Вернуть общее количество предмета (независимо от прочности)"""
-        stack = self.inventory.get(item_id)
-        return stack.count if stack else 0
+        return sum(
+            stack.count for stack in self.inventory_slots
+            if stack and stack.item_id == item_id
+        )
 
     def set_hotbar_slot(self, index, item_id):
         if 0 <= index < len(self.hotbar):
@@ -67,73 +83,74 @@ class Player:
                 self.use_item(item_id)  # еда/вода сразу используется
 
     def add_item(self, item_id, amount=1, durability=None):
-        """
-        Добавляет предмет в инвентарь.
-        Если durability не задана, для инструментов берётся максимальная прочность.
-        Возвращает True, если хотя бы часть предмета поместилась, иначе False.
-        """
         from game.items.registry import ITEMS
         prototype = ITEMS.get(item_id)
         if not prototype:
             return False
 
-        # --- уже есть такой предмет в инвентаре ---
-        if item_id in self.inventory:
-            stack = self.inventory[item_id]
+        remaining = amount
+        added_any = False
+        max_stack = prototype.max_stack
 
-            # Инструменты не стакаются (max_stack == 1)
-            if prototype.max_stack == 1:
-                # Если это инструмент, вернём False – нельзя иметь два
-                return False
-
-            # Стакаемый предмет
-            new_total = stack.count + amount
-            if new_total <= prototype.max_stack:
-                stack.count = new_total
-                return True
-            else:
-                stack.count = prototype.max_stack
-                return False  # полностью не влезло, но старый стек полон
-
-        # --- предмета в инвентаре ещё нет ---
+        if max_stack == 1:
+            while remaining > 0:
+                slot_idx = self._find_empty_slot()
+                if slot_idx is None:
+                    break
+                self.inventory_slots[slot_idx] = ItemStack(item_id, 1, durability)
+                remaining -= 1
+                added_any = True
         else:
-            self.inventory[item_id] = ItemStack(item_id, amount, durability)
-            success = True
+            for stack in self.inventory_slots:
+                if stack and stack.item_id == item_id and stack.count < max_stack:
+                    can_add = min(remaining, max_stack - stack.count)
+                    stack.count += can_add
+                    remaining -= can_add
+                    added_any = True
+                    if remaining <= 0:
+                        break
 
-        # Если добавили инструмент или оружие – сразу кладём в хотбар
-        if success:
-            item = ITEMS.get(item_id)
-            if item and hasattr(item, 'tool_type'):
-                self.add_to_hotbar(item_id)
+            while remaining > 0:
+                slot_idx = self._find_empty_slot()
+                if slot_idx is None:
+                    break
+                chunk = min(remaining, max_stack)
+                self.inventory_slots[slot_idx] = ItemStack(item_id, chunk, durability)
+                remaining -= chunk
+                added_any = True
 
-        return success
+        if added_any and hasattr(prototype, 'tool_type'):
+            self.add_to_hotbar(item_id)
 
+        return added_any and remaining == 0
 
     def remove_item(self, item_id, amount=1):
-        """Удаляет количество предмета, чистит хотбар, возвращает успех"""
-        stack = self.inventory.get(item_id)
-        if not stack or stack.count < amount:
+        if self.count_item(item_id) < amount:
             return False
-        stack.count -= amount
-        if stack.count <= 0:
-            del self.inventory[item_id]
+        remaining = amount
+        for i, stack in enumerate(self.inventory_slots):
+            if not stack or stack.item_id != item_id:
+                continue
+            take = min(remaining, stack.count)
+            stack.count -= take
+            remaining -= take
+            if stack.count <= 0:
+                self.inventory_slots[i] = None
+            if remaining <= 0:
+                break
         self.clean_hotbar()
         return True
 
     def obtain_pistol(self):
-        """Подобрать пистолет или патроны, если пистолет уже есть."""
-        if "pistol" in self.inventory:
-            # Уже есть пистолет: получаем только боеприпасы
+        if self.has_item("pistol"):
             self.add_item("magazine", 8)
         else:
-            # Первый пистолет – оружие с полным магазином
             self.add_item("pistol", 1, durability=8)
             self.add_to_hotbar("pistol")
 
     def use_item(self, item_id):
-        """Использует предмет (еда/вода). Для инструментов не вызывается."""
         from game.items.registry import ITEMS
-        if item_id not in self.inventory or item_id not in ITEMS:
+        if not self.has_item(item_id) or item_id not in ITEMS:
             return False
         item = ITEMS[item_id]
         if hasattr(item, 'hunger_restore') or hasattr(item, 'thirst_restore'):
@@ -160,11 +177,11 @@ class Player:
         self.hotbar[0] = item_id
         self.active_item_id = item_id
 
-    def attack(self, enemies, mouse_pos=None):
+    def attack(self, enemies, mouse_pos=None, damage=None):
         if self.attack_cooldown > 0 or not self.alive:
             return
-        if self.attack_cooldown > 0:
-            return
+
+        hit_damage = damage if damage is not None else self.attack_damage
 
         if mouse_pos:
             dx = mouse_pos[0] - self.x
@@ -180,8 +197,8 @@ class Player:
             dy = e.y - self.y
             dist = math.hypot(dx, dy)
             if dist < self.attack_range:
-                e.health -= self.attack_damage
-                e.hit_timer = 5  # ← запускаем эффект удара
+                e.health -= hit_damage
+                e.hit_timer = 5
                 e.aggro_player = True
 
         self.attack_cooldown = 30
@@ -245,8 +262,8 @@ class Player:
     def update(self):
         if not self.alive:
             return
-        self.hunger -= 0.001
-        self.thirst -= 0.002
+        self.hunger -= 0.008
+        self.thirst -= 0.009
         if self.hunger <= 0 or self.thirst <= 0:
             self.health -= 0.05
 
@@ -265,35 +282,42 @@ class Player:
             self.attack_cooldown -= 1
 
     def get_tool(self, tool_type):
-        """Возвращает item_id первого инструмента заданного типа (если есть)"""
         from game.items.registry import ITEMS
-        for item_id, stack in self.inventory.items():
-            if item_id in ITEMS:
-                item = ITEMS[item_id]
-                if isinstance(item, Tool) and item.tool_type == tool_type:
-                    return item_id
+        for stack in self.inventory_slots:
+            if not stack:
+                continue
+            item = ITEMS.get(stack.item_id)
+            if item and isinstance(item, Tool) and item.tool_type == tool_type:
+                return stack.item_id
         return None
 
+    def get_stack(self, item_id):
+        return self._get_stack_in_slot(item_id)
+
     def consume_tool_durability(self, item_id):
-        stack = self.inventory.get(item_id)
-        if not stack or not stack.is_tool:
-            return False
-        stack.durability -= 1
+        for i, stack in enumerate(self.inventory_slots):
+            if not stack or stack.item_id != item_id:
+                continue
+            if not stack.is_tool:
+                return False
+            stack.durability -= 1
 
-        # для пистолета не удаляем, для остальных удаляем при 0
-        from game.items.registry import ITEMS
-        prototype = ITEMS.get(item_id)
-        if prototype and hasattr(prototype, 'tool_type') and prototype.tool_type == 'gun':
-            if stack.durability < 0:
-                stack.durability = 0
+            from game.items.registry import ITEMS
+            prototype = ITEMS.get(item_id)
+            if prototype and hasattr(prototype, 'tool_type') and prototype.tool_type == 'gun':
+                if stack.durability < 0:
+                    stack.durability = 0
+                return True
+
+            if stack.durability <= 0:
+                self.inventory_slots[i] = None
+                if self.active_item_id == item_id:
+                    self.active_item_id = None
+                self.clean_hotbar()
             return True
+        return False
 
-        if stack.durability <= 0:
-            self.remove_item(item_id, 1)
-            if self.active_item_id == item_id:
-                self.active_item_id = None
-        return True
-
-    def draw(self, surface):
-        pygame.draw.rect(surface, BLUE, (self.x, self.y, self.size, self.size))
+    def draw(self, surface, camera_x=0, camera_y=0):
+        from game.assets.sprites import blit_entity
+        blit_entity(surface, "player", self.x, self.y, self.size, camera_x, camera_y)
 

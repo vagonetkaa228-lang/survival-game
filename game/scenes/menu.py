@@ -1,5 +1,6 @@
 import pygame
 import math
+import game.settings as gs
 from game.scenes.game_scene import GameScene
 from game.save_system import load_game
 from game.scenes.settings import SettingsScene
@@ -17,11 +18,22 @@ class MenuScene:
 
         self.time = 0
 
+        if not pygame.mixer.music.get_busy():
+            try:
+                pygame.mixer.music.load("assets/music/menu.mp3")
+                pygame.mixer.music.set_volume(gs.SOUND_VOLUME)
+                pygame.mixer.music.play(-1)
+                self._menu_music_playing = True
+            except Exception as e:
+                print(f"Не удалось загрузить музыку: {e}")
+
     def handle_event(self, event):
         if self.start_btn.clicked(event):
+            pygame.mixer.music.stop()
             return PrologueScene()
 
         if self.load_btn.clicked(event):
+            pygame.mixer.music.stop()
             data = load_game()
             return GameScene(data)
         if self.settings.clicked(event):

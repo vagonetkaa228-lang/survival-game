@@ -3,14 +3,13 @@ import pygame
 import random
 from game.entities.enemy_base import Enemy
 
-
 class Wolf(Enemy):
     def __init__(self, x, y):
         super().__init__(x, y, enemy_type="wolf")
-        self.speed = random.uniform(2, 3.5)
+        self.speed = random.uniform(2, 3)
         self.damage = 20
-        self.health = 80
-        self.max_health = 80
+        self.health = random.uniform(100,150)
+        self.max_health = 120
         self.sight_range = 250
         self.flee_health_threshold = 25
         self.pack_call_range = 300
@@ -62,15 +61,44 @@ class Wolf(Enemy):
                 self.target.health -= self.damage
                 self.attack_cooldown = 30
 
-    def draw(self, surface, camera_x, camera_y):
-        if self.dying:
-            color = (128, 0, 0)
-        elif self.hit_timer > 0:
-            color = (255, 255, 255)
-        else:
-            color = (128, 128, 128)
-        pygame.draw.rect(surface, color,
-                         (self.x - camera_x, self.y - camera_y, self.size, self.size))
+
+class StoryWolf(Wolf):
+    """Волк для сюжетного эпизода: неактивен до триггера, может атаковать NPC."""
+    def __init__(self, x, y):
+        super().__init__(x, y)
+        self.episode_active = False
+        self.episode_survivor = None
+
+    def update_state(self, player, all_enemies=None, structures=None):
+        if not self.episode_active:
+            self.state = "idle"
+            self.target = None
+            return
+
+        if self.aggro_player:
+            self.state = "chase"
+            self.target = player
+            return
+
+        if self.episode_survivor:
+            self.state = "chase"
+            self.target = self.episode_survivor
+            return
+
+        self.state = "idle"
+        self.target = None
+
+    def act(self, player):
+        if self.state != "chase" or not self.target:
+            return
+        self.move_towards(self.target.x, self.target.y, self.structures)
+        dist = math.hypot(self.x - self.target.x, self.y - self.target.y)
+        if dist <= self.attack_range and self.attack_cooldown <= 0:
+            if self.target is player:
+                player.health -= self.damage
+            elif hasattr(self.target, "take_hit"):
+                self.target.take_hit()
+            self.attack_cooldown = 30
 
 
 class WeakWolf(Wolf):
@@ -84,12 +112,3 @@ class WeakWolf(Wolf):
         self.sight_range = 200
         self.pack_call_range = 0
 
-    def draw(self, surface, camera_x, camera_y):
-        if self.dying:
-            color = (100, 50, 50)
-        elif self.hit_timer > 0:
-            color = (255, 255, 255)
-        else:
-            color = (160, 160, 160)
-        pygame.draw.rect(surface, color,
-                         (self.x - camera_x, self.y - camera_y, self.size, self.size))

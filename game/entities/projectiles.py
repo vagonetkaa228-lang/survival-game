@@ -12,7 +12,7 @@ class Projectile:
         self.max_range = max_range
         self.active = True
 
-    def update(self, enemies, structures):
+    def update(self, enemies, structures, on_enemy_hit=None):
         if not self.active:
             return
         self.x += self.vx
@@ -23,15 +23,17 @@ class Projectile:
         for s in structures:
             if s.solid and s.get_rect().collidepoint(self.x, self.y):
                 self.active = False
-                break
+                return
         # Проверка попадания во врагов
         for e in enemies:
             if e.get_rect().collidepoint(self.x, self.y):
                 e.health -= self.damage
                 e.hit_timer = 5
                 e.aggro_player = True
+                if on_enemy_hit:
+                    on_enemy_hit(e)
                 self.active = False
-                break
+                return
         if self.distance_traveled > self.max_range:
             self.active = False
 

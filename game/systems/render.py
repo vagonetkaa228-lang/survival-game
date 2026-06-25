@@ -11,8 +11,7 @@ class WorldRenderer:
         # self.environment.draw_shadow(surface, player.x, player.y, player.size, camera, day_night)
 
         # игрок
-        pygame.draw.rect(surface, (0, 0, 255),
-                         (player.x - camera.x, player.y - camera.y, player.size, player.size))
+        player.draw(surface, camera.x, camera.y)
 
         for e in enemies:
             # self.environment.draw_shadow(surface, e.x, e.y, e.size, camera, day_night)
@@ -25,7 +24,7 @@ class WorldRenderer:
             loot.draw(surface, camera.x, camera.y)
 
         for s in survivors:
-            if not s.found:
+            if getattr(s, 'story_npc', False) or not s.found:
                 s.draw(surface, camera.x, camera.y)
 
         if structures:
