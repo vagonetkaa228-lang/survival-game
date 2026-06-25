@@ -1,23 +1,72 @@
 import pygame
 import random
 import math
-
 class DayNightCycle:
-    def __init__(self, speed=0.0005):
+    def __init__(self, speed=None, day_duration=120, night_duration=60):
+        """
+        Параметры:
+            speed – если передан, используется старый симметричный режим.
+            day_duration – длительность дня в секундах (по умолчанию 120)
+            night_duration – длительность ночи в секундах (по умолчанию 60)
+        """
         self.time = 0.0
         self.speed = speed
+        self.day_duration = day_duration
+        self.night_duration = night_duration
+        self.total_duration = day_duration + night_duration
+        self.day_fraction = day_duration / self.total_duration
+        self.use_asymmetric = (speed is None)
 
-    def update(self):
-        self.time += self.speed
-        if self.time > 1:
-            self.time -= 1
+    def update(self, dt=1/60):
+        if self.use_asymmetric:
+            # Увеличиваем время пропорционально реальному времени
+            self.time += dt / self.total_duration
+            if self.time > 1.0:
+                self.time -= 1.0
+        else:
+            self.time += self.speed
+            if self.time > 1.0:
+                self.time -= 1.0
 
     def get_brightness(self):
-        return 0.5 + 0.5 * math.sin(self.time * 2 * math.pi)
+        if self.use_asymmetric:
+            t = self.time
+            if t < self.day_fraction:
+                # День: яркость плавно падает от 1.0 до 0.5
+                u = t / self.day_fraction
+                # используем кубический сглаживающий полином для мягкого перехода
+                u2 = u * u * (3 - 2 * u)  # smoothstep
+                return 1.0 - 0.5 * u2
+            else:
+                # Ночь: яркость падает от 0.5 до 0.0
+                u = (t - self.day_fraction) / (1.0 - self.day_fraction)
+                u2 = u * u * (3 - 2 * u)
+                return 0.5 * (1.0 - u2)
+        else:
+            # старый симметричный режим
+            return 0.5 + 0.5 * math.sin(self.time * 2 * math.pi)
 
     def get_sun_direction(self):
+        # В асимметричном режиме можно оставить синусоидальный угол,
+        # либо адаптировать под фактическое положение солнца (но это не критично)
         angle = self.time * 2 * math.pi
         return (math.cos(angle), math.sin(angle))
+# class DayNightCycle:
+#     def __init__(self, speed=0.0005):
+#         self.time = 0.0
+#         self.speed = speed
+#
+#     def update(self):
+#         self.time += self.speed
+#         if self.time > 1:
+#             self.time -= 1
+#
+#     def get_brightness(self):
+#         return 0.5 + 0.5 * math.sin(self.time * 2 * math.pi)
+#
+#     def get_sun_direction(self):
+#         angle = self.time * 2 * math.pi
+#         return (math.cos(angle), math.sin(angle))
 
 class WorldEnvironment:
     def __init__(self, world_width, world_height):
@@ -79,46 +128,119 @@ class WorldEnvironment:
                 pygame.draw.rect(surface, color, draw_rect)
 
     def generate_structures(self):
-        """Создаёт список деревьев и камней (Structure) на основе карты.
-        Возвращает список структур."""
+        """Деревья по сетке и жилы камней (как раньше)."""
         structures = []
-        # Деревья: размещаем на траве с вероятностью, избегая краёв
-        step = 50  # расстояние между возможными позициями
+
+        step = 80
         for x in range(self.center_x - int(self.island_radius_x), self.center_x + int(self.island_radius_x), step):
             for y in range(self.center_y - int(self.island_radius_y), self.center_y + int(self.island_radius_y), step):
-                # Добавим небольшой случайный сдвиг
                 pos_x = x + random.randint(-10, 10)
                 pos_y = y + random.randint(-10, 10)
                 if self.get_tile(pos_x, pos_y) == 'grass':
-                    # Не каждую клетку заполняем
-                    if random.random() < 0.4:  # 40% шанс дерева
-                        # Проверим, не слишком ли близко к камню (камни генерируются позже, но можно пропустить)
+                    if random.random() < 0.4:
                         structures.append(self.create_tree(pos_x, pos_y))
 
-        # Камни: генерируем несколько "жил" (скоплений камней)
         for _ in range(10):
             vein_x = random.randint(self.center_x - int(self.island_radius_x * 0.7),
                                     self.center_x + int(self.island_radius_x * 0.7))
             vein_y = random.randint(self.center_y - int(self.island_radius_y * 0.7),
                                     self.center_y + int(self.island_radius_y * 0.7))
-            # Скопление из 3-8 камней
             for _ in range(random.randint(3, 8)):
                 stone_x = vein_x + random.randint(-25, 25)
                 stone_y = vein_y + random.randint(-25, 25)
                 if self.get_tile(stone_x, stone_y) == 'grass':
                     structures.append(self.create_stone(stone_x, stone_y))
+
         return structures
+
+    def generate_berry_loots(self):
+        """Ягоды по карте: кластеры 1–2 штуки."""
+        from game.entities.loot import Loot
+
+        loots = []
+        berry_centers = []
+        cluster_spacing = 110
+        cluster_radius = 30
+
+        for _ in range(70):
+            center = self._random_land_position()
+            if center is None:
+                continue
+            cx, cy = center
+            if any(math.hypot(cx - ox, cy - oy) < cluster_spacing for ox, oy in berry_centers):
+                continue
+            berry_centers.append((cx, cy))
+            placed = 0
+            target = random.randint(1, 2)
+            for _ in range(target * 4):
+                if placed >= target:
+                    break
+                ox = cx + random.randint(-cluster_radius, cluster_radius)
+                oy = cy + random.randint(-cluster_radius, cluster_radius)
+                if self.get_tile(ox, oy) not in ("grass", "sand"):
+                    continue
+                loots.append(Loot(ox, oy, "berry"))
+                placed += 1
+
+        return loots
+
+    def generate_pebble_loots(self):
+        """Камушки на карте: подбираются, дают камень (кластеры 1–2)."""
+        from game.entities.loot import Loot
+
+        loots = []
+        pebble_centers = []
+        cluster_spacing = 110
+        cluster_radius = 30
+
+        for _ in range(65):
+            center = self._random_land_position()
+            if center is None:
+                continue
+            cx, cy = center
+            if any(math.hypot(cx - ox, cy - oy) < cluster_spacing for ox, oy in pebble_centers):
+                continue
+            pebble_centers.append((cx, cy))
+            placed = 0
+            target = random.randint(1, 2)
+            for _ in range(target * 4):
+                if placed >= target:
+                    break
+                ox = cx + random.randint(-cluster_radius, cluster_radius)
+                oy = cy + random.randint(-cluster_radius, cluster_radius)
+                if self.get_tile(ox, oy) not in ("grass", "sand"):
+                    continue
+                loots.append(Loot(ox, oy, "stone"))
+                placed += 1
+
+        return loots
+
+    def _random_land_position(self, attempts=80):
+        min_x = self.center_x - int(self.island_radius_x * 0.92)
+        max_x = self.center_x + int(self.island_radius_x * 0.92)
+        min_y = self.center_y - int(self.island_radius_y * 0.92)
+        max_y = self.center_y + int(self.island_radius_y * 0.92)
+        for _ in range(attempts):
+            x = random.randint(min_x, max_x)
+            y = random.randint(min_y, max_y)
+            if self.get_tile(x, y) in ("grass", "sand"):
+                return x, y
+        return None
 
     def create_tree(self, x, y):
         from game.entities.structure import Structure
+        from game.systems.mining import TREE_MAX_HP
         tree = Structure(x - 15, y - 30, "tree", width=30, height=30, solid=True)
-        tree.health = 3  # пока неразрушимы, но можно задать
+        tree.health = TREE_MAX_HP
+        tree.max_health = TREE_MAX_HP
         return tree
 
     def create_stone(self, x, y):
         from game.entities.structure import Structure
+        from game.systems.mining import STONE_MAX_HP
         stone = Structure(x - 15, y - 15, "stone_vein", width=30, height=30, solid=True)
-        stone.health = 5  # можно будет разбить
+        stone.health = STONE_MAX_HP
+        stone.max_health = STONE_MAX_HP
         return stone
 
     def is_land(self, world_x, world_y):
@@ -167,31 +289,97 @@ class WorldEnvironment:
         return self.find_land_near(cx - rx // 2, cy - ry // 8, prefer=('grass', 'sand'))
 
     def generate_beach_wreckage(self, count_range=(8, 12)):
-        """Статичные обломки только на левом берегу острова."""
+        """Статичные обломки в верхнем левом углу острова."""
         from game.story.helicopter import StaticWreckage
-        crash_x, crash_y = self.get_crash_site_world_pos()
+        rx = int(self.island_radius_x)
+        ry = int(self.island_radius_y)
+        cx, cy = self.center_x, self.center_y
+        base_x = cx - int(rx * 0.72)
+        base_y = cy - int(ry * 0.72)
         wreckages = []
         target = random.randint(*count_range)
         attempts = 0
-        while len(wreckages) < target and attempts < target * 40:
+        while len(wreckages) < target and attempts < target * 50:
             attempts += 1
-            wx = crash_x + random.randint(-60, 100)
-            wy = crash_y + random.randint(-90, 90)
-            if wx >= self.center_x - self.island_radius_x * 0.15:
+            wx = base_x + random.randint(-50, 120)
+            wy = base_y + random.randint(-40, 100)
+            if wx > cx - rx * 0.2 or wy > cy - ry * 0.15:
                 continue
             tile = self.get_tile(wx, wy)
             if tile not in ('sand', 'grass'):
                 continue
             new_rect = pygame.Rect(wx, wy, 30, 22)
-            overlap = False
-            for w in wreckages:
-                if w.rect.colliderect(new_rect):
-                    overlap = True
-                    break
-            if not overlap:
-                wreckages.append(StaticWreckage(wx, wy))
+            if any(w.rect.colliderect(new_rect) for w in wreckages):
+                continue
+            wreckages.append(StaticWreckage(wx, wy))
         return wreckages
 
     def is_near_crash_site(self, world_x, world_y, radius=110):
         cx, cy = self.get_crash_site_world_pos()
         return math.hypot(world_x - cx, world_y - cy) <= radius
+
+    def get_pilot_rest_position(self):
+        """Примерная позиция пилота после первого эпизода."""
+        cx, cy = self.center_x, self.center_y
+        rx, ry = int(self.island_radius_x), int(self.island_radius_y)
+        for y in range(cy - ry // 4, cy + ry // 4, 25):
+            for x in range(cx - int(rx * 0.55), cx - rx // 6, 25):
+                if self.get_tile(x, y) == "grass":
+                    return x, y
+        return cx - rx // 3, cy
+
+    def get_captain_rescue_site(self, pilot_x=None, pilot_y=None):
+        """Место капитана: юго-восточный берег относительно пилота или острова."""
+        if pilot_x is not None and pilot_y is not None:
+            for dist in range(350, 1100, 45):
+                for angle_deg in (15, 25, 35, 45, 55):
+                    rad = math.radians(angle_deg)
+                    sx = pilot_x + dist * math.cos(rad)
+                    sy = pilot_y + dist * math.sin(rad)
+                    if self.get_tile(sx, sy) not in ("sand", "grass"):
+                        continue
+                    water_pos = self._water_beside(sx, sy)
+                    if water_pos:
+                        wx, wy = water_pos
+                        return {"shore_x": sx, "shore_y": sy, "water_x": wx, "water_y": wy}
+
+        cx, cy = self.center_x, self.center_y
+        rx, ry = int(self.island_radius_x), int(self.island_radius_y)
+        best_shore = None
+        best_score = -1
+        for y in range(cy + ry // 6, cy + ry - 30, 20):
+            for x in range(cx + rx // 5, cx + rx - 30, 20):
+                if self.get_tile(x, y) not in ("sand", "grass"):
+                    continue
+                if not self._water_beside(x, y):
+                    continue
+                score = (x - cx) * 1.2 + (y - cy)
+                if score > best_score:
+                    best_score = score
+                    best_shore = (x, y)
+
+        if best_shore:
+            shore_x, shore_y = best_shore
+        else:
+            shore_x = cx + int(rx * 0.55)
+            shore_y = cy + int(ry * 0.55)
+            shore_x, shore_y = self.find_land_near(shore_x, shore_y, prefer=("sand", "grass"))
+
+        water_pos = self._water_beside(shore_x, shore_y)
+        if water_pos:
+            water_x, water_y = water_pos
+        else:
+            water_x, water_y = shore_x + 40, shore_y + 35
+
+        return {"shore_x": shore_x, "shore_y": shore_y, "water_x": water_x, "water_y": water_y}
+
+    def _water_beside(self, shore_x, shore_y):
+        for step in range(20, 140, 10):
+            for wx, wy in (
+                (shore_x + step, shore_y + step // 2),
+                (shore_x + step, shore_y),
+                (shore_x + step // 2, shore_y + step),
+            ):
+                if self.get_tile(wx, wy) == "water":
+                    return wx, wy
+        return None

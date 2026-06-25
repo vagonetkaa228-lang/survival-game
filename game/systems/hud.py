@@ -1,13 +1,24 @@
 import pygame
+from game.assets.sprites import get_sprite
 
 class HUD:
     def __init__(self, font_size=24):
         self.font = pygame.font.SysFont(None, font_size)
         self.displayed_hp = 100.0
-        self.icon_food = pygame.Surface((20, 20))
-        self.icon_food.fill((255, 200, 0))
-        self.icon_water = pygame.Surface((20, 20))
-        self.icon_water.fill((0, 200, 255))
+        # self.icon_food = pygame.Surface((20, 20))
+        # self.icon_food.fill((255, 200, 0))
+        # self.icon_water = pygame.Surface((20, 20))
+        # self.icon_water.fill((0, 200, 255))
+
+        self.icon_food = get_sprite('hungry', 25)  # файл hungry.png
+        self.icon_water = get_sprite('drop', 25)  # файл drop.png (или drope.png)
+
+        if self.icon_food is None:
+            self.icon_food = pygame.Surface((20, 20))
+            self.icon_food.fill((255, 200, 0))
+        if self.icon_water is None:
+            self.icon_water = pygame.Surface((20, 20))
+            self.icon_water.fill((0, 200, 255))
 
     def update(self, player_health):
         self.displayed_hp += (player_health - self.displayed_hp) * 0.1
@@ -29,7 +40,7 @@ class HUD:
         screen.blit(self.icon_water, (20, 65))
 
         food_text = self.font.render(f"Сытость: {int(player.hunger)}", True, (255, 255, 255))
-        water_text = self.font.render(f"Утоленость: {int(player.thirst)}", True, (255, 255, 255))
+        water_text = self.font.render(f"Уталенность: {int(player.thirst)}", True, (255, 255, 255))
         screen.blit(food_text, (50, 40))
         screen.blit(water_text, (50, 65))
 
@@ -48,18 +59,9 @@ class HUD:
 
             item_id = player.hotbar[i]
             if item_id:
-                stack = player.inventory.get(item_id)  # получаем один раз
-
-                # Иконка
-                from game.items.registry import ITEMS
-                item = ITEMS.get(item_id)
-                if item:
-                    if hasattr(item, 'tool_type'):
-                        color = (245, 184, 0)
-                    else:
-                        color = (150, 150, 100)
-                    icon_rect = rect.inflate(-10, -10)
-                    pygame.draw.rect(screen, color, icon_rect)
+                from game.assets.sprites import blit_item
+                blit_item(screen, item_id, rect)
+                stack = player.get_stack(item_id)
 
                 # Прочность (если есть)
                 if stack and stack.durability is not None:

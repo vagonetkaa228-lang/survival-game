@@ -6,8 +6,8 @@ class Enemy:
     def __init__(self, x, y, enemy_type="animal"):
         self.x = x
         self.y = y
-        self.size = 20
-        self.speed = random.uniform(2, 4.5)
+        self.size = 40
+        self.speed = random.uniform(2, 4)
         self.type = enemy_type
         self.health = 100
         self.max_health = 100
@@ -167,11 +167,10 @@ class Enemy:
                 return
             self.y = new_y
     def draw(self, surface, camera_x, camera_y):
-        if self.dying:
-            color = (128, 0, 0)
-            pygame.draw.rect(surface, color,
-                             (self.x - camera_x, self.y - camera_y, self.size, self.size))
-        else:
-            color = (255, 255, 255) if self.hit_timer > 0 else (255, 0, 0)
-            pygame.draw.rect(surface, color,
-                             (self.x - camera_x, self.y - camera_y, self.size, self.size))
+        from game.assets.sprites import blit_entity
+        blit_entity(
+            surface, self.type, self.x, self.y, self.size,
+            camera_x, camera_y,
+            hit=self.hit_timer > 0,
+            dying=self.dying,
+        )

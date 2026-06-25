@@ -9,8 +9,8 @@ from game.systems.environment import WorldEnvironment
 from game.systems.combat import perform_attack
 from game.story.helicopter import HelicopterWreckage, StaticWreckage
 from game.scenes.inventory_scene import InventoryScene
-
-
+from game.assets.sprites import get_sprite
+import game.settings as gs
 class _PrologueCamera:
     zoom = 1
     x = 0
@@ -67,11 +67,22 @@ class PrologueScene:
         self.crash_alpha = 0
         self.smoke_particles = []
 
+        self.helicopter_channel = None
+        if not self.revisit:
+            try:
+                self.helicopter_sound = pygame.mixer.Sound("assets/music/helicopter.mp3")
+                self.helicopter_channel = pygame.mixer.find_channel()
+                if self.helicopter_channel:
+                    self.helicopter_channel.play(self.helicopter_sound, loops=-1)
+                    self.helicopter_channel.set_volume(gs.SOUND_VOLUME)
+            except Exception as e:
+                print(f"Не удалось загрузить звук вертолёта: {e}")
+
         self.dialogues = [
             {"time": 4.0, "author": "Пилот", "text": "Далеко ещё до этого острова..."},
             {"time": 9.0, "author": "Капитан", "text": "Скоро. По карте уже близко."},
-            {"time": 14.5, "author": "Мы", "text": "Я так до конца и не понял, что именно нам там нужно?"},
-            {"time": 20.5, "author": "Капитан", "text": "Там есть кое-что важное для корпорации. Доверься мне."},
+            {"time": 14.5, "author": "Игрок", "text": "Я надеюсь не зря мы туда летим и мы найдем, что-то стоящее"},
+            {"time": 20.5, "author": "Капитан", "text": "Поверь,там будет на что посмотреть.. "},
             {"time": 25.5, "author": "Пилот", "text": "Осторожно! Что-то с двигателем."},
             {"time": 28.0, "author": "Пилот", "text": "Теряю управление! Держитесь!!!"},
         ]
@@ -86,6 +97,8 @@ class PrologueScene:
         self.spawn_point = (240, 480)
         self.world_offset_x = -150
         self.world_offset_y = 0
+
+        self.helicopter_sprite = None  # будет загружен при первом рисовании
 
         if player is not None:
             self.player = Player()
@@ -153,9 +166,9 @@ class PrologueScene:
         ]
         if not nearby:
             nearby = self.wreckages
-        for _ in range(random.randint(5, 6)):
+        for _ in range(random.randint(4, 6)):
             wreck = random.choice(nearby)
-            item_id = random.choice(["clean_water", "meat"])
+            item_id = "clean_water"
             lx = wreck.x + wreck.width // 2 + random.randint(-12, 12)
             ly = wreck.y + wreck.height // 2 + random.randint(-12, 12)
             lx = max(10, min(WIDTH - 20, lx))
@@ -181,7 +194,7 @@ class PrologueScene:
                 if self._screen_tile(wx, wy) != 'grass':
                     continue
                 dist = math.hypot(wx - px, wy - py)
-                if 120 <= dist <= 220:
+                if 140 <= dist <= 240:
                     candidates.append((wx, wy))
 
         if candidates:
@@ -267,7 +280,7 @@ class PrologueScene:
                 return _PrologueInventory(self.player, self)
             if event.key == pygame.K_r:
                 if self.player.active_item_id == "pistol":
-                    pistol_stack = self.player.inventory.get("pistol")
+                    pistol_stack = self.player.get_stack("pistol")
                     if pistol_stack and pistol_stack.durability == 0:
                         if self.player.count_item("magazine") > 0:
                             self.player.remove_item("magazine", 1)
@@ -277,7 +290,7 @@ class PrologueScene:
                     self.player.use_hotbar_item(i)
 
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-            if self.player.active_item_id == "pistol" or "pistol" in self.player.inventory:
+            if self.player.active_item_id == "pistol" or self.player.has_item("pistol"):
                 if self.player.active_item_id != "pistol":
                     self.player.add_to_hotbar("pistol")
                 mouse_pos = pygame.mouse.get_pos()
@@ -313,6 +326,8 @@ class PrologueScene:
                     self.phase = "crash"
                     self.timer = 0
                     self.crash_alpha = 0
+                    if self.helicopter_channel:
+                        self.helicopter_channel.stop()
 
             self._update_dialogues()
 
@@ -370,7 +385,7 @@ class PrologueScene:
                 self.shoot_cooldown -= 1
             mouse_buttons = pygame.mouse.get_pressed()
             if mouse_buttons[0] and self.shoot_cooldown <= 0 and self.wolf and not self.wolf.dying:
-                if "pistol" in self.player.inventory:
+                if self.player.has_item("pistol"):
                     if self.player.active_item_id != "pistol":
                         self.player.add_to_hotbar("pistol")
                     mouse_pos = pygame.mouse.get_pos()
@@ -482,7 +497,7 @@ class PrologueScene:
         safe_radius = 200
         spawn_x, spawn_y = self.spawn_point
 
-        for _ in range(30):
+        for _ in range(20):
             for attempt in range(50):
                 tx = random.randint(100, WIDTH - 50)
                 ty = random.randint(80, HEIGHT - 120)
@@ -570,19 +585,37 @@ class PrologueScene:
         screen.blit(text, (box_x + pad, box_y + pad))
 
     def draw(self, screen):
+
         if self.phase == "helicopter":
-            screen.fill((135, 206, 235))
+            screen.fill((135, 206, 235))  # небо
+
+            # Дым (оставляем как есть)
             for p in self.smoke_particles:
                 alpha = max(0, int(p[2]))
                 if alpha > 0:
                     smoke_surf = pygame.Surface((int(p[3] * 2), int(p[3] * 2)), pygame.SRCALPHA)
                     pygame.draw.circle(smoke_surf, (180, 180, 180, alpha), (int(p[3]), int(p[3])), int(p[3]))
                     screen.blit(smoke_surf, (p[0] - p[3], p[1] - p[3]))
-            cx, cy = self.heli_x, self.heli_y
-            pygame.draw.ellipse(screen, (80, 80, 80), (cx - 40, cy - 15, 80, 30))
-            pygame.draw.rect(screen, (60, 60, 60), (cx - 60, cy - 8, 30, 10))
-            pygame.draw.line(screen, BLACK, (cx, cy - 20), (cx + 25, cy - 5), 3)
-            pygame.draw.line(screen, BLACK, (cx, cy - 20), (cx - 25, cy - 5), 3)
+
+            # Загружаем спрайт вертолёта (если ещё не загружен)
+            if self.helicopter_sprite is None:
+                # Подберите размер под свой спрайт (например, 120×50)
+                self.helicopter_sprite = get_sprite('helicopter', (480, 300))
+
+            # Рисуем вертолёт спрайтом
+            if self.helicopter_sprite:
+                # Центрируем спрайт по координатам heli_x, heli_y
+                w, h = self.helicopter_sprite.get_size()
+                screen.blit(self.helicopter_sprite, (self.heli_x - w // 2, self.heli_y - h // 2))
+            else:
+                # Если спрайт не загрузился – рисуем старую "сковородку" как запасной вариант
+                cx, cy = self.heli_x, self.heli_y
+                pygame.draw.ellipse(screen, (80, 80, 80), (cx - 40, cy - 15, 80, 30))
+                pygame.draw.rect(screen, (60, 60, 60), (cx - 60, cy - 8, 30, 10))
+                pygame.draw.line(screen, BLACK, (cx, cy - 20), (cx + 25, cy - 5), 3)
+                pygame.draw.line(screen, BLACK, (cx, cy - 20), (cx - 25, cy - 5), 3)
+
+            # Диалоги (оставляем как есть)
             if self.dialogue_active and hasattr(self, 'current_dialogue'):
                 d = self.current_dialogue
                 bar = pygame.Surface((WIDTH, 80), pygame.SRCALPHA)

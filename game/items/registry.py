@@ -27,8 +27,8 @@ register_item(Resource("wood_door_kit", "Деревянная дверь"))
 
 
 
-register_item(Tool("stone_axe", "Каменный топор", "Простой топор", durability=30, tool_type="axe", power=4))
-register_item(Tool("stone_pickaxe", "Каменная кирка", "Простая кирка", durability=30, tool_type="pickaxe", power=2))
+register_item(Tool("stone_axe", "Каменный топор", "Простой топор", durability=30, tool_type="axe", power=40))
+register_item(Tool("stone_pickaxe", "Каменная кирка", "Простая кирка", durability=30, tool_type="pickaxe", power=30))
 
 register_item(Tool("spear", "Копьё", "Увеличивает дальность атаки", durability=40, tool_type="spear", power=10))
 register_item(Tool("bow", "Лук", "Стрельба стрелами", durability=30, tool_type="bow", power=5))
@@ -36,3 +36,4 @@ register_item(Resource("arrow", "Стрела", "Боеприпас для лу�
 # Пистолет – не крафтится, появляется в мире
 register_item(Tool("pistol", "Пистолет", "Огнестрел, 8 патронов", durability=8, tool_type="gun", power=30))
 register_item(Resource("magazine", "Магазин", "Патроны для пистолета"))
+register_item(Resource("raft", "Плот", "Плот для побега с острова"))

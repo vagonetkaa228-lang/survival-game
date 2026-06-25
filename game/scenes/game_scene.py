@@ -1,8 +1,13 @@
 import pygame
 import random
 import math
+import game.settings as gs
 from pygame import K_ESCAPE
 from game.story.prologue import PrologueScene
+from game.story.pilot_rescue import PilotRescueEpisode
+from game.story.captain_rescue import CaptainRescueEpisode
+from game.entities.wolf import StoryWolf
+from game.entities.bear import StoryBear
 from game.items.registry import ITEMS
 from game.settings import WIDTH, HEIGHT, WORLD_WIDTH, WORLD_HEIGHT, CRASH_SITE_RADIUS
 from game.entities.player import Player
@@ -15,17 +20,29 @@ from game.systems.hud import HUD
 from game.systems.render import WorldRenderer
 from game.entities import Wolf, Bear, Structure, Deer, Rabbit, Fox
 from game.systems.combat import perform_attack
+from game.systems.mining import (
+    can_mine_structure,
+    get_mining_damage,
+    uses_tool_durability,
+    get_melee_tool_damage,
+)
 
 class GameScene:
     def __init__(self, data=None):
         self.player = Player()
         self.tutorial_completed = False
         self.prologue_completed = False
+        self.pilot_rescue_completed = False
+        self.captain_rescue_completed = False
+        self.unlocked_story_recipes = []
         if data:
             if "player" in data:
                 self.player.__dict__.update(data["player"])
             self.tutorial_completed = data.get("tutorial_completed", False)
             self.prologue_completed = data.get("prologue_completed", False)
+            self.pilot_rescue_completed = data.get("pilot_rescue_completed", False)
+            self.captain_rescue_completed = data.get("captain_rescue_completed", False)
+            self.unlocked_story_recipes = list(data.get("unlocked_story_recipes", []))
             self._prologue_spawn = (
                 data.get("spawn_x"),
                 data.get("spawn_y"),
@@ -44,6 +61,24 @@ class GameScene:
             else:
                 self.player.x, self.player.y = self.environment.get_game_spawn_after_prologue()
 
+        self.pilot_rescue = None
+        if self.prologue_completed and not self.pilot_rescue_completed:
+            self.pilot_rescue = PilotRescueEpisode(
+                self.environment, self.player.x, self.player.y
+            )
+        elif self.pilot_rescue_completed:
+            self.pilot_rescue = PilotRescueEpisode.from_completed(self.environment)
+
+        self.captain_rescue = None
+        if self.pilot_rescue_completed and not self.captain_rescue_completed and self.pilot_rescue:
+            self.captain_rescue = CaptainRescueEpisode(
+                self.environment, self.pilot_rescue.pilot
+            )
+        elif self.captain_rescue_completed and self.pilot_rescue:
+            self.captain_rescue = CaptainRescueEpisode.from_completed(
+                self.environment, self.pilot_rescue.pilot
+            )
+        self._sync_raft_recipe_unlock()
 
         self.structures = self.environment.generate_structures()
         self.beach_wreckages = self.environment.generate_beach_wreckage()
@@ -58,6 +93,17 @@ class GameScene:
         self.build_mode = False
         self.build_item = None
         self.build_options = ["campfire_kit", "wood_wall_kit", "wood_door_kit"]
+
+        if not pygame.mixer.music.get_busy():
+            try:
+                pygame.mixer.music.load("assets/music/les.mp3")
+                pygame.mixer.music.set_volume(gs.SOUND_VOLUME)  # громкость 0–1
+                pygame.mixer.music.play(-1)  # -1 = бесконечный повтор
+            except Exception as e:
+                print(f"Не удалось загрузить музыку: {e}")
+
+
+
 
         def find_grass_pos(max_attempts=200):
             """Возвращает (x, y) на траве или None, если не найдено."""
@@ -75,7 +121,7 @@ class GameScene:
             if pos:
                 self.enemies.append(Wolf(*pos))
 
-            # ---------- МЕДВЕДИ (15 штук) ----------
+
         for _ in range(8):
             pos = find_grass_pos()
             if pos:
@@ -87,60 +133,117 @@ class GameScene:
             if pos:
                 self.enemies.append(Deer(*pos))
 
-            # ---------- КРОЛИКИ (100 штук) ----------
-        for _ in range(25):
+
+        for _ in range(35):
             pos = find_grass_pos()
             if pos:
                 self.enemies.append(Rabbit(*pos))
 
             # ---------- ЛИСЫ (10 штук) ----------
-        for _ in range(10):
+        for _ in range(16):
             pos = find_grass_pos()
             if pos:
                 self.enemies.append(Fox(*pos))
 
-            # ---------- ЛУТ (ягоды, вода, дерево, камень) ----------
-        self.loots = []
-        for _ in range(10):
-            for _ in range(30):  # попытки найти сушу (траву или песок)
-                x = random.randint(0, WORLD_WIDTH)
-                y = random.randint(0, WORLD_HEIGHT)
-                if self.environment.is_land(x, y):
-                    break
-            else:
-                continue
-            item_id = random.choice(["berry", "clean_water", "wood", "stone"])
-            self.loots.append(Loot(x, y, item_id))
+            # ---------- ЛУТ: ягоды и камушки ----------
+        self.loots = list(self.environment.generate_berry_loots())
+        self.loots.extend(self.environment.generate_pebble_loots())
 
-        # ---------- ВЫЖИВШИЕ (5 человек) ----------
+
+
         self.survivors = []
-        for _ in range(5):
-            pos = find_grass_pos()
-            if pos:
-                self.survivors.append(Survivor(*pos))
+        if not self.pilot_rescue:
+            for _ in range(5):
+                pos = find_grass_pos()
+                if pos:
+                    self.survivors.append(Survivor(*pos))
 
-        # ---------- ПИСТОЛЕТЫ (5 штук, только на суше) ----------
-        for _ in range(5):
-            for _ in range(30):
-                x = random.randint(0, WORLD_WIDTH)
-                y = random.randint(0, WORLD_HEIGHT)
-                if self.environment.is_land_fast(x, y):  # достаточно эллипса (без шума)
-                    break
-            else:
-                continue
-            self.loots.append(Loot(x, y, "pistol"))
+
+
+
+    def _try_start_captain_episode(self):
+        if self.captain_rescue or self.captain_rescue_completed:
+            return
+        if not self.pilot_rescue_completed or not self.pilot_rescue:
+            return
+        self.captain_rescue = CaptainRescueEpisode(
+            self.environment, self.pilot_rescue.pilot
+        )
+
+    def _sync_raft_recipe_unlock(self):
+        if self.captain_rescue_completed and "raft" not in self.unlocked_story_recipes:
+            self.unlocked_story_recipes.append("raft")
+
+    def _finish_captain_rescue_episode(self):
+        if self.captain_rescue_completed:
+            return
+        self.captain_rescue_completed = True
+        self._sync_raft_recipe_unlock()
+
+    def _episode_enemies(self):
+        enemies = []
+        if self.pilot_rescue:
+            enemies.extend(self.pilot_rescue.get_combat_wolves())
+        if self.captain_rescue:
+            enemies.extend(self.captain_rescue.get_combat_bears())
+        return enemies
+
+    def _all_combat_enemies(self):
+        return self.enemies + self._episode_enemies()
+
+    def _visible_survivors(self):
+        survivors = []
+        if self.pilot_rescue:
+            survivors.extend(self.pilot_rescue.get_draw_survivors())
+        if self.captain_rescue and self.captain_rescue.should_render(self.player):
+            for s in self.captain_rescue.get_draw_survivors():
+                if s not in survivors:
+                    survivors.append(s)
+        if self.pilot_rescue and self.pilot_rescue.completed:
+            survivors.extend(self.survivors)
+        elif not self.pilot_rescue:
+            survivors.extend(self.survivors)
+        return survivors
+
+    def _on_projectile_hit(self, enemy):
+        if self.pilot_rescue and isinstance(enemy, StoryWolf):
+            self.pilot_rescue.on_wolf_hit()
+        if self.captain_rescue and isinstance(enemy, StoryBear):
+            self.captain_rescue.on_bear_hit()
+
+    def _any_story_dialog_active(self):
+        if self.pilot_rescue and self.pilot_rescue.dialog_active:
+            return True
+        if self.captain_rescue and self.captain_rescue.dialog_active:
+            return True
+        return False
 
     def handle_event(self, event):
+        if self.pilot_rescue and self.pilot_rescue.handle_event(event):
+            if self.pilot_rescue.completed:
+                self.pilot_rescue_completed = True
+                self._try_start_captain_episode()
+            return self
+        if self.captain_rescue and self.captain_rescue.handle_event(event):
+            if self.captain_rescue.completed:
+                self._finish_captain_rescue_episode()
+            return self
+
         if event.type == pygame.KEYDOWN:
             if event.key == K_ESCAPE:
+                pygame.mixer.music.stop()
                 from game.scenes.menu import MenuScene
                 return MenuScene()
             if event.key == pygame.K_F5:
-                save_game(self.player)
+                save_game(self)
             if event.key == pygame.K_i:
                 from game.scenes.inventory_scene import InventoryScene
                 return InventoryScene(self.player, self)
             if event.key == pygame.K_e:
+                if self.captain_rescue and self.captain_rescue.try_start_captain_dialog(self.player):
+                    return self
+                if self.pilot_rescue and self.pilot_rescue.try_start_dialog(self.player):
+                    return self
                 self.player.interact(self.structures)
             if event.key == pygame.K_b:
                 # Циклическое переключение строительных наборов
@@ -179,7 +282,7 @@ class GameScene:
                 return self
             if event.key == pygame.K_r:
                 if self.player.active_item_id == "pistol":
-                    pistol_stack = self.player.inventory.get("pistol")
+                    pistol_stack = self.player.get_stack("pistol")
                     if pistol_stack and pistol_stack.durability == 0:
                         if self.player.count_item("magazine") > 0:
                             self.player.remove_item("magazine", 1)
@@ -237,43 +340,67 @@ class GameScene:
                             struct_center_y = s.y + s.height // 2
                             dist = math.hypot(player_center_x - world_click_x, player_center_y - world_click_y)
                             if dist <= 150:
-                                tool_type = "axe" if s.type == "tree" else "pickaxe"
                                 tool_id = self.player.active_item_id
                                 tool_item = ITEMS.get(tool_id) if tool_id else None
 
-                                # Урон по умолчанию (кулаками)
-                                damage = 1
-                                tool_used = False
+                                if not can_mine_structure(s.type, tool_item):
+                                    return self
 
-                                if tool_item and hasattr(tool_item, 'tool_type') and tool_item.tool_type == tool_type:
-                                    stack = self.player.inventory.get(tool_id)
-                                    if stack and stack.durability is not None and stack.durability > 0:
-                                        damage = 3  # бонус инструментом
-                                        tool_used = True
+                                damage = get_mining_damage(s.type, tool_item)
+                                if damage <= 0:
+                                    return self
+
+                                stack = self.player.get_stack(tool_id) if tool_id else None
+                                if tool_item and uses_tool_durability(s.type, tool_item):
+                                    if not stack or stack.durability is None or stack.durability <= 0:
+                                        return self
 
                                 s.health -= damage
                                 s.hit_timer = 5
 
-                                if tool_used:
-                                    self.player.consume_tool_durability(tool_id)  # <-- трата прочности
-
+                                if tool_item and uses_tool_durability(s.type, tool_item):
+                                    self.player.consume_tool_durability(tool_id)
 
                                 if s.health <= 0:
                                     if s.type == "tree":
                                         for _ in range(random.randint(2, 3)):
-                                            self.loots.append(Loot(s.x + random.randint(-10, 10),
-                                                                   s.y + random.randint(-10, 10), "wood"))
+                                            self.loots.append(Loot(
+                                                s.x + random.randint(-10, 10),
+                                                s.y + random.randint(-10, 10), "wood",
+                                            ))
                                     elif s.type == "stone_vein":
                                         for _ in range(random.randint(2, 4)):
-                                            self.loots.append(Loot(s.x + random.randint(-10, 10),
-                                                                   s.y + random.randint(-10, 10), "stone"))
+                                            self.loots.append(Loot(
+                                                s.x + random.randint(-10, 10),
+                                                s.y + random.randint(-10, 10), "stone",
+                                            ))
                                     self.structures.remove(s)
-                            # нашли структуру – дальше атаку не проводим
                             return self
 
-                if not perform_attack(self.player, self.enemies, mouse_pos,
-                                      self.camera, self.projectiles):
-                    self.player.attack(self.enemies, mouse_pos)
+                shot = perform_attack(self.player, self._all_combat_enemies(), mouse_pos,
+                                      self.camera, self.projectiles)
+                if shot:
+                    if self.pilot_rescue:
+                        self.pilot_rescue.on_player_shot()
+                    if self.captain_rescue:
+                        self.captain_rescue.on_player_shot(self.player)
+                    return self
+
+                tool_id = self.player.active_item_id
+                tool_item = ITEMS.get(tool_id) if tool_id else None
+                melee_damage = get_melee_tool_damage(tool_item)
+                if melee_damage is not None:
+                    stack = self.player.get_stack(tool_id)
+                    if stack and stack.durability and stack.durability > 0:
+                        self.player.attack(self._all_combat_enemies(), mouse_pos, damage=melee_damage)
+                        self.player.consume_tool_durability(tool_id)
+                        if self.captain_rescue:
+                            self.captain_rescue.on_player_attack(self.player)
+                    return self
+
+                self.player.attack(self._all_combat_enemies(), mouse_pos)
+                if self.captain_rescue:
+                    self.captain_rescue.on_player_attack(self.player)
                 return self
 
     def update(self):
@@ -282,13 +409,37 @@ class GameScene:
             return GameOverScene()
 
         keys = pygame.key.get_pressed()
-        self.player.move(keys, self.structures + self.beach_wreckages)
+        if not self._any_story_dialog_active():
+            self.player.move(keys, self.structures + self.beach_wreckages)
         self.player.update()
 
         px = self.player.x + self.player.size // 2
         py = self.player.y + self.player.size // 2
         if self.environment.is_near_crash_site(px, py, CRASH_SITE_RADIUS):
             return PrologueScene(revisit=True, player=self.player, game_scene=self)
+
+        if self.pilot_rescue:
+            if not self.pilot_rescue.completed:
+                self.pilot_rescue.update(
+                    self.player, self.structures + self.beach_wreckages, self.environment
+                )
+            else:
+                self.pilot_rescue.pilot.update()
+
+        if self.pilot_rescue and self.pilot_rescue.completed and not self.pilot_rescue_completed:
+            self.pilot_rescue_completed = True
+            self._try_start_captain_episode()
+        elif self.pilot_rescue_completed and not self.captain_rescue and not self.captain_rescue_completed:
+            self._try_start_captain_episode()
+
+        if self.captain_rescue and not self.captain_rescue.completed:
+            self.captain_rescue.update(
+                self.player, self.structures + self.beach_wreckages, self.environment
+            )
+            if self.captain_rescue.completed:
+                self._finish_captain_rescue_episode()
+        elif self.captain_rescue:
+            self.captain_rescue.captain.update()
 
         self.day_night.update()
         self.camera.update(self.player.x, self.player.y)
@@ -308,14 +459,16 @@ class GameScene:
                         self.player.add_to_hotbar(loot.item_id)
                 self.loots.remove(loot)
 
-        # поиск выживших
-        for s in self.survivors:
-            if not s.found and pygame.Rect(self.player.x, self.player.y, self.player.size,
-                                           self.player.size).colliderect(
-                    pygame.Rect(s.x, s.y, s.size, s.size)
-            ):
-                s.found = True
-                print("Вы нашли выжившего!")
+        if self.environment.is_near_crash_site(px, py, CRASH_SITE_RADIUS):
+            pygame.mixer.music.stop()
+            return PrologueScene(revisit=True, player=self.player, game_scene=self)
+
+        if not self.player.alive:
+            pygame.mixer.music.stop()  # <-- Останавливаем музыку
+            from game.scenes.game_over_scenes import GameOverScene
+            return GameOverScene()
+
+
 
         # обновление врагов
         for enemy in self.enemies[:]:
@@ -349,7 +502,11 @@ class GameScene:
                     self.player.health = min(100, self.player.health + 0.05)
         # обновление снарядов
         for proj in self.projectiles[:]:
-            proj.update(self.enemies, self.structures + self.beach_wreckages)
+            proj.update(
+                self._all_combat_enemies(),
+                self.structures + self.beach_wreckages,
+                on_enemy_hit=self._on_projectile_hit,
+            )
             if not proj.active:
                 self.projectiles.remove(proj)
         self.hud.update(self.player.health)
@@ -358,17 +515,30 @@ class GameScene:
         # Сначала рендерим мир через WorldRenderer
         self.renderer.render_full(
             screen, self.camera, self.player,
-            self.enemies, self.loots, self.survivors,
+            self.enemies, self.loots, self._visible_survivors(),
             self.day_night, self.structures
 
         )
         self.hud.draw(screen, self.player)
 
+        if self.pilot_rescue:
+            self.pilot_rescue.draw_footprints(screen, self.camera)
         for wreck in self.beach_wreckages:
             wreck.draw(screen, self.camera.x, self.camera.y)
 
         for proj in self.projectiles:
             proj.draw(screen, self.camera.x, self.camera.y)
+
+        if self.captain_rescue:
+            self.captain_rescue.draw_bears(screen, self.camera)
+            self.captain_rescue.draw_hint(screen, self.player, self.camera)
+            self.captain_rescue.draw_dialog(screen)
+
+        if self.pilot_rescue:
+            for wolf in self.pilot_rescue.wolves:
+                wolf.draw(screen, self.camera.x, self.camera.y)
+            self.pilot_rescue.draw_hint(screen)
+            self.pilot_rescue.draw_dialog(screen)
 
         # Отрисовка призрака постройки
         if self.build_mode and self.build_item:

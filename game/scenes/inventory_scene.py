@@ -19,8 +19,9 @@ class InventoryScene:
         self.update_panels()
 
     def update_panels(self):
-        self.inv_panel.update_from_inventory(self.player.inventory)
-        self.craft_panel.update_recipes(self.player)
+        self.inv_panel.update_from_inventory(self.player.inventory_slots)
+        unlocked = getattr(self.game_scene, "unlocked_story_recipes", [])
+        self.craft_panel.update_recipes(self.player, unlocked)
 
     def handle_event(self, event):
         if event.type == pygame.KEYDOWN and event.key == pygame.K_i:
@@ -39,6 +40,12 @@ class InventoryScene:
         # Клик по кнопке крафта
         result = self.craft_panel.handle_event(event, self.player)
         if result:
+            if result == "raft":
+                from game.story.escape_ending import EscapeEndingScene
+                gs = self.game_scene
+                pilot = gs.pilot_rescue.pilot if gs.pilot_rescue else None
+                captain = gs.captain_rescue.captain if gs.captain_rescue else None
+                return EscapeEndingScene(self.player, pilot, captain)
             from game.items.registry import ITEMS
             from game.items.tool import Tool
             item = ITEMS.get(result)
@@ -61,6 +68,7 @@ class InventoryScene:
 
     def update(self):
         self.close_btn.update()
+        self.update_panels()
         for btn in self.craft_panel.buttons:
             btn.update()
 
@@ -80,10 +88,6 @@ class InventoryScene:
             self.inv_panel.draw(screen)
             self.craft_panel.draw(screen, self.player)
             self.close_btn.draw(screen, self.font)
-
-            # Подсказка
-            hint = self.font.render("ЛКМ – использовать / скрафтить", True, (180, 160, 120))
-            screen.blit(hint, (300, 500))
 
             # Тултип при наведении на слот
             mouse_pos = pygame.mouse.get_pos()

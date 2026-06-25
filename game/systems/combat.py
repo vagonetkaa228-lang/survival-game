@@ -40,11 +40,11 @@ def _bow_attack(player, px, py, target_x, target_y, projectiles):
 
 # combat.py (фрагмент)
 def _gun_attack(player, item, px, py, target_x, target_y, projectiles):
-    stack = player.inventory.get(player.active_item_id)
+    stack = player.get_stack(player.active_item_id)
     if stack and stack.durability and stack.durability > 0:
         player.consume_tool_durability(player.active_item_id)
         angle = math.atan2(target_y - py, target_x - px)
-        proj = Projectile(px, py, angle, speed=15, damage=15)
+        proj = Projectile(px, py, angle, speed=15, damage=100)
         projectiles.append(proj)
 
 def _spear_attack(player, enemies, mouse_pos):

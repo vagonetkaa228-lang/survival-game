@@ -15,12 +15,11 @@ class InventoryPanel:
                 slot_y = y + row * (slot_size + spacing)
                 self.slots.append(Slot(slot_x, slot_y, slot_size))
 
-    def update_from_inventory(self, inventory):
-        items = list(inventory.items())
+    def update_from_inventory(self, inventory_slots):
         for i, slot in enumerate(self.slots):
-            if i < len(items):
-                item_id, stack = items[i]
-                slot.set_item(item_id, stack.count, stack.durability)
+            if i < len(inventory_slots) and inventory_slots[i]:
+                stack = inventory_slots[i]
+                slot.set_item(stack.item_id, stack.count, stack.durability)
             else:
                 slot.clear()
 

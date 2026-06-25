@@ -6,7 +6,7 @@ from game.entities.animal import Animal
 class Deer(Animal):
     def __init__(self, x, y):
         super().__init__(x, y, "deer")
-        self.size = 25
+        self.size = 43
         self.speed = random.uniform(3, 5)   # достаточно быстрый
         self.health = 100
         self.max_health = 100
@@ -51,13 +51,3 @@ class Deer(Animal):
         else:
             # Спокойно бродим
             self.wander(self.structures)
-
-    def draw(self, surface, camera_x, camera_y):
-        if self.dying:
-            color = (128, 0, 0)
-        elif self.hit_timer > 0:
-            color = (255, 255, 255)
-        else:
-            color = (101, 67, 33)  # тёмно-коричневый
-        pygame.draw.rect(surface, color,
-                         (self.x - camera_x, self.y - camera_y, self.size, self.size))

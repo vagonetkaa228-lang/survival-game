@@ -33,15 +33,8 @@ class Slot:
         pygame.draw.rect(screen, border_color, self.rect, 4)
 
         if self.item_id and self.item_id in ITEMS:
-            item = ITEMS[self.item_id]
-            # Временная иконка – цветной квадрат
-            if item.id in ["berry", "meat"]:
-                color = (255, 100, 0)
-            elif item.id in ["clean_water", "dirty_water"]:
-                color = (0, 150, 255)
-            else:
-                color = (150, 150, 150)
-            pygame.draw.rect(screen, color, self.rect.inflate(-6, -6))
+            from game.assets.sprites import blit_item
+            blit_item(screen, self.item_id, self.rect)
 
             # Количество
             if self.count > 1:

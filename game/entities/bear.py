@@ -6,10 +6,10 @@ from game.entities.enemy_base import Enemy
 class Bear(Enemy):
     def __init__(self, x, y):
         super().__init__(x, y, enemy_type="bear")
-        self.size = 35
+        self.size = 50
         self.speed = random.uniform(0.8, 1.5)
         self.damage = 20
-        self.health = 250
+        self.health = 400
         self.max_health = 250
         self.sight_range = 300
         self.attack_range = 40
@@ -56,12 +56,44 @@ class Bear(Enemy):
         if self.attack_cooldown > 0:
             self.attack_cooldown -= 1
 
-    def draw(self, surface, camera_x, camera_y):
+class StoryBear(Bear):
+    """Медведь для сюжетного эпизода — неактивен до атаки игрока."""
+    def __init__(self, x, y):
+        super().__init__(x, y)
+        self.episode_active = False
+
+    def update(self, player, all_enemies=None, structures=None, environment=None):
+        self.structures = structures
+        self.environment = environment
         if self.dying:
-            color = (128, 0, 0)
-        elif self.hit_timer > 0:
-            color = (255, 255, 255)
+            self.death_timer -= 1
+            return self.death_timer <= 0
+        if self.hit_timer > 0:
+            self.hit_timer -= 1
+        if self.health <= 0:
+            self.dying = True
+            self.death_timer = 100
+            return False
+        if not self.episode_active:
+            return False
+        self.update_state(player, all_enemies, structures)
+        self.act(player)
+        return False
+
+    def update_state(self, player, all_enemies=None, structures=None):
+        if not self.episode_active:
+            self.state = "idle"
+            self.target = None
+            return
+        if self.aggro_player:
+            self.state = "chase"
+            self.target = player
+            return
+        dist = math.hypot(player.x - self.x, player.y - self.y)
+        if dist <= self.sight_range:
+            self.state = "chase"
+            self.target = player
         else:
-            color = (152, 118, 84)   # тёмно-коричневый
-        pygame.draw.rect(surface, color,
-                         (self.x - camera_x, self.y - camera_y, self.size, self.size))
+            self.state = "idle"
+            self.target = None
+
