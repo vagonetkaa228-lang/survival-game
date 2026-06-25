@@ -51,22 +51,6 @@ class DayNightCycle:
         # либо адаптировать под фактическое положение солнца (но это не критично)
         angle = self.time * 2 * math.pi
         return (math.cos(angle), math.sin(angle))
-# class DayNightCycle:
-#     def __init__(self, speed=0.0005):
-#         self.time = 0.0
-#         self.speed = speed
-#
-#     def update(self):
-#         self.time += self.speed
-#         if self.time > 1:
-#             self.time -= 1
-#
-#     def get_brightness(self):
-#         return 0.5 + 0.5 * math.sin(self.time * 2 * math.pi)
-#
-#     def get_sun_direction(self):
-#         angle = self.time * 2 * math.pi
-#         return (math.cos(angle), math.sin(angle))
 
 class WorldEnvironment:
     def __init__(self, world_width, world_height):

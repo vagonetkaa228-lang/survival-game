@@ -1,4 +1,4 @@
-# game/items/item_stack.py
+
 from game.items.registry import ITEMS
 
 class ItemStack:

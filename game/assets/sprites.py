@@ -1,6 +1,6 @@
 import os
 import pygame
-
+#Вайб кодинг
 _ASSETS_DIR = os.path.join(os.path.dirname(__file__), "images")
 _raw_cache = {}
 _scaled_cache = {}

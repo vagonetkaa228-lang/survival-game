@@ -7,17 +7,14 @@ class WorldRenderer:
         self.hud = hud
 
     def draw_entities(self, surface, camera, player, enemies, loots, survivors, day_night, structures=None):
-        # тени временно отключены, так как WorldEnvironment больше их не рисует
-        # self.environment.draw_shadow(surface, player.x, player.y, player.size, camera, day_night)
 
-        # игрок
         player.draw(surface, camera.x, camera.y)
 
         for e in enemies:
-            # self.environment.draw_shadow(surface, e.x, e.y, e.size, camera, day_night)
+
             e.draw(surface, camera.x, camera.y)
 
-            # HP бар врага ...
+
 
 
         for loot in loots:
