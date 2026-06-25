@@ -5,10 +5,6 @@ class HUD:
     def __init__(self, font_size=24):
         self.font = pygame.font.SysFont(None, font_size)
         self.displayed_hp = 100.0
-        # self.icon_food = pygame.Surface((20, 20))
-        # self.icon_food.fill((255, 200, 0))
-        # self.icon_water = pygame.Surface((20, 20))
-        # self.icon_water.fill((0, 200, 255))
 
         self.icon_food = get_sprite('hungry', 25)  # файл hungry.png
         self.icon_water = get_sprite('drop', 25)  # файл drop.png (или drope.png)

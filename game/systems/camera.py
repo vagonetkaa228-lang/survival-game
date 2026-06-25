@@ -1,5 +1,5 @@
 import pygame
-
+"""Вайб кодинг"""
 class Camera:
     def __init__(self, width, height, world_width, world_height):
         self.x = 0

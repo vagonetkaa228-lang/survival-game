@@ -35,8 +35,9 @@ class GameScene:
         self.pilot_rescue_completed = False
         self.captain_rescue_completed = False
         self.unlocked_story_recipes = []
-        if data:
-            if "player" in data:
+        if data: # если переданы данные сохранения
+
+            if "player" in data: # если есть данные игрокаув
                 self.player.__dict__.update(data["player"])
             self.tutorial_completed = data.get("tutorial_completed", False)
             self.prologue_completed = data.get("prologue_completed", False)
@@ -114,33 +115,33 @@ class GameScene:
                     return x, y
             return None
 
-            # ---------- ВОЛКИ (10 штук) ----------
+            #  ВОЛКИ
 
-        for _ in range(10):
+        for _ in range(12):
             pos = find_grass_pos()
             if pos:
                 self.enemies.append(Wolf(*pos))
 
 
-        for _ in range(8):
+        for _ in range(10):
             pos = find_grass_pos()
             if pos:
                 self.enemies.append(Bear(*pos))
 
-            # ---------- ОЛЕНИ (20 штук) ----------
-        for _ in range(12):
+            #  ОЛЕНИ
+        for _ in range(22):
             pos = find_grass_pos()
             if pos:
                 self.enemies.append(Deer(*pos))
 
-
+            #КРОЛИКИ
         for _ in range(35):
             pos = find_grass_pos()
             if pos:
                 self.enemies.append(Rabbit(*pos))
 
-            # ---------- ЛИСЫ (10 штук) ----------
-        for _ in range(16):
+            #  ЛИСЫ
+        for _ in range(20):
             pos = find_grass_pos()
             if pos:
                 self.enemies.append(Fox(*pos))

@@ -17,9 +17,15 @@ STORY_RECIPES = {
 
 
 def get_recipes_for_player(unlocked_story_ids=None):
-    recipes = list(RECIPES)
-    if unlocked_story_ids:
-        for recipe_id in unlocked_story_ids:
-            if recipe_id in STORY_RECIPES:
-                recipes.append(STORY_RECIPES[recipe_id])
-    return recipes
+    """
+    Возвращает список рецептов, доступных игроку.
+
+    """
+    recipes = list(RECIPES)  # Начинаем с копии базовых рецептов
+
+    if unlocked_story_ids:  # Если есть открытые сюжетные рецепты
+        for recipe_id in unlocked_story_ids:  # Перебираем их ID
+            if recipe_id in STORY_RECIPES:  # Проверяем, есть ли такой рецепт в словаре
+                recipes.append(STORY_RECIPES[recipe_id])  # Добавляем его в список
+
+    return recipes  # Возвращаем полный список доступных рецептов

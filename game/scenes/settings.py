@@ -1,6 +1,8 @@
 import pygame
 import game.settings as gs
 
+
+#На вайб кожено
 class Button:
     def __init__(self, text, x, y, w, h):
         self.text = text

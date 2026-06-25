@@ -16,7 +16,7 @@ class _PrologueCamera:
     x = 0
     y = 0
 
-
+"""На вайб-кожено"""
 class _PrologueInventory(InventoryScene):
     def handle_event(self, event):
         result = super().handle_event(event)
@@ -81,7 +81,7 @@ class PrologueScene:
         self.dialogues = [
             {"time": 4.0, "author": "Пилот", "text": "Далеко ещё до этого острова..."},
             {"time": 9.0, "author": "Капитан", "text": "Скоро. По карте уже близко."},
-            {"time": 14.5, "author": "Игрок", "text": "Я надеюсь не зря мы туда летим и мы найдем, что-то стоящее"},
+            {"time": 14.5, "author": "Игрок", "text": "Я надеюсь мы не зря туда летим и мы найдем, что-то важное"},
             {"time": 20.5, "author": "Капитан", "text": "Поверь,там будет на что посмотреть.. "},
             {"time": 25.5, "author": "Пилот", "text": "Осторожно! Что-то с двигателем."},
             {"time": 28.0, "author": "Пилот", "text": "Теряю управление! Держитесь!!!"},
